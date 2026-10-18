@@ -324,6 +324,39 @@ func TestParseWordsTrailingBrackets(t *testing.T) {
 	}
 }
 
+func TestLessonAccumulatesOutput(t *testing.T) {
+	fake := &fakeAI{replies: []string{
+		"plan", "УРОК ЧАСТЬ 1", "УРОК ЧАСТЬ 2",
+		`[{"term":"a","translation":"б"}]`,
+	}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Lesson(ctx, 1, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Handle(ctx, 1, "мой ответ"); err != nil {
+		t.Fatal(err)
+	}
+
+	sess, _ := st.Load(1)
+	if !strings.Contains(sess.LastLessonOutput, "УРОК ЧАСТЬ 1") ||
+		!strings.Contains(sess.LastLessonOutput, "УРОК ЧАСТЬ 2") {
+		t.Errorf("lesson output not accumulated: %q", sess.LastLessonOutput)
+	}
+
+	if _, err := tut.SaveWords(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	extractInput := fake.last[1].Content
+	if !strings.Contains(extractInput, "УРОК ЧАСТЬ 1") || !strings.Contains(extractInput, "УРОК ЧАСТЬ 2") {
+		t.Errorf("save received only part of the lesson: %q", extractInput)
+	}
+}
+
 func TestSplitHistoryLimit(t *testing.T) {
 	history := make([]ai.Message, maxHistory+10)
 	for i := range history {

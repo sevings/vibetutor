@@ -262,7 +262,7 @@ func (t *Tutor) reply(ctx context.Context, userID int64, sess *store.Session, te
 	sess.History = trimHistory(sess.History)
 
 	if sess.InLesson() {
-		sess.LastLessonOutput = reply
+		sess.LastLessonOutput = appendLessonOutput(sess.LastLessonOutput, reply)
 	}
 	if err := t.store.Save(userID, sess); err != nil {
 		return "", err
@@ -336,6 +336,16 @@ func trimHistory(h []ai.Message) []ai.Message {
 		return h
 	}
 	return h[len(h)-maxHistory:]
+}
+
+// appendLessonOutput adds a new assistant reply to the accumulated lesson
+// transcript so /save can extract vocabulary from the whole lesson, not just
+// its last message.
+func appendLessonOutput(existing, reply string) string {
+	if strings.TrimSpace(existing) == "" {
+		return reply
+	}
+	return existing + "\n\n" + reply
 }
 
 // parseWords extracts a JSON array of words from a model reply that may
