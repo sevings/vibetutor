@@ -257,6 +257,12 @@ func (t *Tutor) reply(ctx context.Context, userID int64, sess *store.Session, te
 		return "", err
 	}
 
+	// Skip persisting an empty turn so a blank model reply does not pollute the
+	// context of the next request.
+	if strings.TrimSpace(reply) == "" {
+		return reply, nil
+	}
+
 	sess.History = append(sess.History,
 		ai.Message{Role: ai.RoleUser, Content: text},
 		ai.Message{Role: ai.RoleAssistant, Content: reply},

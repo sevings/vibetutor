@@ -273,6 +273,35 @@ func TestAIErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestEmptyReplyNotPersisted(t *testing.T) {
+	fake := &fakeAI{replies: []string{"plan", "lesson", "   "}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Lesson(ctx, 1, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	before, _ := st.Load(1)
+	reply, err := tut.Handle(ctx, 1, "my answer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(reply) != "" {
+		t.Errorf("reply = %q, want empty", reply)
+	}
+	after, _ := st.Load(1)
+	if len(after.History) != len(before.History) {
+		t.Errorf("history changed on empty reply: %d -> %d", len(before.History), len(after.History))
+	}
+	if after.LastLessonOutput != before.LastLessonOutput {
+		t.Errorf("lesson output changed on empty reply: %q -> %q", before.LastLessonOutput, after.LastLessonOutput)
+	}
+}
+
 func TestReset(t *testing.T) {
 	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
 	ctx := context.Background()
