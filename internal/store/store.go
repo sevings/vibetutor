@@ -44,9 +44,8 @@ type Word struct {
 
 // Progress tracks the student's achievements.
 type Progress struct {
-	CompletedLessons []int    `json:"completed_lessons,omitempty"`
-	Difficult        []string `json:"difficult,omitempty"`
-	SavedWords       []Word   `json:"saved_words,omitempty"`
+	CompletedLessons []int  `json:"completed_lessons,omitempty"`
+	SavedWords       []Word `json:"saved_words,omitempty"`
 }
 
 // Session is the full persisted state of a single Telegram user.

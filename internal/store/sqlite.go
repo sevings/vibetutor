@@ -34,7 +34,6 @@ type record struct {
 
 	History          []ai.Message `gorm:"serializer:json"`
 	CompletedLessons []int        `gorm:"serializer:json"`
-	Difficult        []string     `gorm:"serializer:json"`
 	SavedWords       []Word       `gorm:"serializer:json"`
 
 	Mode         string
@@ -118,7 +117,6 @@ func toRecord(userID int64, sess *Session) *record {
 		LastLessonOutput: sess.LastLessonOutput,
 		History:          sess.History,
 		CompletedLessons: sess.Progress.CompletedLessons,
-		Difficult:        sess.Progress.Difficult,
 		SavedWords:       sess.Progress.SavedWords,
 		Mode:             sess.Mode,
 		SetupStep:        sess.SetupStep,
@@ -141,7 +139,6 @@ func (r *record) toSession() *Session {
 		History:          r.History,
 		Progress: Progress{
 			CompletedLessons: r.CompletedLessons,
-			Difficult:        r.Difficult,
 			SavedWords:       r.SavedWords,
 		},
 		Mode:         r.Mode,
