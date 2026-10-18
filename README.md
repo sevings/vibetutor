@@ -104,6 +104,10 @@ docker compose up -d --build
 | `openai_timeout`   | `VIBETUTOR_OPENAI_TIMEOUT`        | Таймаут запроса, например `60s`              |
 | `database`         | `VIBETUTOR_DATABASE`              | Путь к файлу базы данных SQLite              |
 
+Некорректные значения `VIBETUTOR_OPENAI_TIMEOUT` (не парсится как
+длительность, например `60` без единицы) и `VIBETUTOR_ALLOWED_USERS` (не
+числа через запятую) не игнорируются: бот завершает запуск с ошибкой.
+
 ## Пример с локальной моделью (Ollama)
 
 ```ini

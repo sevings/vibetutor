@@ -56,7 +56,9 @@ func Load(path string) (*Config, error) {
 			return nil, err
 		}
 	}
-	cfg.applyEnv()
+	if err := cfg.applyEnv(); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -150,7 +152,7 @@ func parseIDs(value string) ([]int64, error) {
 	return ids, nil
 }
 
-func (c *Config) applyEnv() {
+func (c *Config) applyEnv() error {
 	if v := os.Getenv("VIBETUTOR_TELEGRAM_TOKEN"); v != "" {
 		c.TelegramToken = v
 	}
@@ -167,15 +169,20 @@ func (c *Config) applyEnv() {
 		c.Database = v
 	}
 	if v := os.Getenv("VIBETUTOR_OPENAI_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			c.OpenAITimeout = d
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return fmt.Errorf("invalid VIBETUTOR_OPENAI_TIMEOUT %q: %w", v, err)
 		}
+		c.OpenAITimeout = d
 	}
 	if v := os.Getenv("VIBETUTOR_ALLOWED_USERS"); v != "" {
-		if ids, err := parseIDs(v); err == nil {
-			c.AllowedUsers = ids
+		ids, err := parseIDs(v)
+		if err != nil {
+			return fmt.Errorf("invalid VIBETUTOR_ALLOWED_USERS %q: %w", v, err)
 		}
+		c.AllowedUsers = ids
 	}
+	return nil
 }
 
 // Validate reports whether the configuration contains the mandatory values.

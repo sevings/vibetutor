@@ -115,6 +115,18 @@ func TestLoadErrors(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+	t.Run("bad env user id", func(t *testing.T) {
+		t.Setenv("VIBETUTOR_ALLOWED_USERS", "123, oops")
+		if _, err := Load(""); err == nil {
+			t.Fatal("expected error")
+		}
+	})
+	t.Run("bad env timeout", func(t *testing.T) {
+		t.Setenv("VIBETUTOR_OPENAI_TIMEOUT", "soon")
+		if _, err := Load(""); err == nil {
+			t.Fatal("expected error")
+		}
+	})
 }
 
 func TestValidate(t *testing.T) {
