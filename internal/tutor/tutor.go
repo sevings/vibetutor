@@ -339,15 +339,15 @@ func trimHistory(h []ai.Message) []ai.Message {
 }
 
 // parseWords extracts a JSON array of words from a model reply that may
-// contain surrounding text.
+// contain surrounding text. Decoding stops at the end of the first array, so
+// trailing bracketed text after it is ignored.
 func parseWords(raw string) ([]store.Word, error) {
 	start := strings.Index(raw, "[")
-	end := strings.LastIndex(raw, "]")
-	if start == -1 || end == -1 || end < start {
+	if start == -1 {
 		return nil, fmt.Errorf("в ответе нет JSON-массива")
 	}
 	var words []store.Word
-	if err := json.Unmarshal([]byte(raw[start:end+1]), &words); err != nil {
+	if err := json.NewDecoder(strings.NewReader(raw[start:])).Decode(&words); err != nil {
 		return nil, err
 	}
 	return words, nil

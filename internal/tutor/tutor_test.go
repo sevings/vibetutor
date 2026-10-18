@@ -314,6 +314,16 @@ func TestParseWords(t *testing.T) {
 	}
 }
 
+func TestParseWordsTrailingBrackets(t *testing.T) {
+	words, err := parseWords(`[{"term":"a","translation":"б"}] (см. [1])`)
+	if err != nil {
+		t.Fatalf("parseWords: %v", err)
+	}
+	if len(words) != 1 || words[0].Term != "a" {
+		t.Errorf("words = %+v", words)
+	}
+}
+
 func TestSplitHistoryLimit(t *testing.T) {
 	history := make([]ai.Message, maxHistory+10)
 	for i := range history {
