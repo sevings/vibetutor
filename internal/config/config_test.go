@@ -94,6 +94,21 @@ func TestLoadEnvOverride(t *testing.T) {
 	}
 }
 
+func TestLoadEnvClearsValue(t *testing.T) {
+	path := writeConfig(t, "openai_api_key = file-secret\nopenai_model = file-model\n")
+	t.Setenv("VIBETUTOR_OPENAI_API_KEY", "")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OpenAIAPIKey != "" {
+		t.Errorf("api key = %q, want empty", cfg.OpenAIAPIKey)
+	}
+	if cfg.OpenAIModel != "file-model" {
+		t.Errorf("model = %q, want file-model", cfg.OpenAIModel)
+	}
+}
+
 func TestLoadErrors(t *testing.T) {
 	t.Run("missing file", func(t *testing.T) {
 		if _, err := Load(filepath.Join(t.TempDir(), "nope.txt")); err == nil {

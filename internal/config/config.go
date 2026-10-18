@@ -153,29 +153,31 @@ func parseIDs(value string) ([]int64, error) {
 }
 
 func (c *Config) applyEnv() error {
-	if v := os.Getenv("VIBETUTOR_TELEGRAM_TOKEN"); v != "" {
+	// LookupEnv is used instead of Getenv so an explicitly empty variable (e.g.
+	// VIBETUTOR_OPENAI_API_KEY=) can clear a value set in the config file.
+	if v, ok := os.LookupEnv("VIBETUTOR_TELEGRAM_TOKEN"); ok {
 		c.TelegramToken = v
 	}
-	if v := os.Getenv("VIBETUTOR_OPENAI_API_KEY"); v != "" {
+	if v, ok := os.LookupEnv("VIBETUTOR_OPENAI_API_KEY"); ok {
 		c.OpenAIAPIKey = v
 	}
-	if v := os.Getenv("VIBETUTOR_OPENAI_BASE_URL"); v != "" {
+	if v, ok := os.LookupEnv("VIBETUTOR_OPENAI_BASE_URL"); ok {
 		c.OpenAIBaseURL = v
 	}
-	if v := os.Getenv("VIBETUTOR_OPENAI_MODEL"); v != "" {
+	if v, ok := os.LookupEnv("VIBETUTOR_OPENAI_MODEL"); ok {
 		c.OpenAIModel = v
 	}
-	if v := os.Getenv("VIBETUTOR_DATABASE"); v != "" {
+	if v, ok := os.LookupEnv("VIBETUTOR_DATABASE"); ok {
 		c.Database = v
 	}
-	if v := os.Getenv("VIBETUTOR_OPENAI_TIMEOUT"); v != "" {
+	if v, ok := os.LookupEnv("VIBETUTOR_OPENAI_TIMEOUT"); ok && v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
 			return fmt.Errorf("invalid VIBETUTOR_OPENAI_TIMEOUT %q: %w", v, err)
 		}
 		c.OpenAITimeout = d
 	}
-	if v := os.Getenv("VIBETUTOR_ALLOWED_USERS"); v != "" {
+	if v, ok := os.LookupEnv("VIBETUTOR_ALLOWED_USERS"); ok {
 		ids, err := parseIDs(v)
 		if err != nil {
 			return fmt.Errorf("invalid VIBETUTOR_ALLOWED_USERS %q: %w", v, err)
