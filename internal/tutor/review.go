@@ -48,10 +48,7 @@ func (t *Tutor) Review(userID int64) (*ReviewStep, error) {
 		return &ReviewStep{Text: "Словарь пуст. Пройди урок и сохрани слова командой /save."}, nil
 	}
 
-	step, err := t.nextReviewStep(sess)
-	if err != nil {
-		return nil, err
-	}
+	step := t.nextReviewStep(sess)
 	if err := t.store.Save(userID, sess); err != nil {
 		return nil, err
 	}
@@ -85,10 +82,7 @@ func (t *Tutor) ReviewAction(userID int64, data string) (*ReviewStep, error) {
 	schedule(&sess.Progress.SavedWords[idx], quality, time.Now())
 	sess.ReviewTerm = ""
 
-	step, err := t.nextReviewStep(sess)
-	if err != nil {
-		return nil, err
-	}
+	step := t.nextReviewStep(sess)
 	if err := t.store.Save(userID, sess); err != nil {
 		return nil, err
 	}
@@ -96,12 +90,12 @@ func (t *Tutor) ReviewAction(userID int64, data string) (*ReviewStep, error) {
 }
 
 // nextReviewStep selects the next due word and arms the session for it.
-func (t *Tutor) nextReviewStep(sess *store.Session) (*ReviewStep, error) {
+func (t *Tutor) nextReviewStep(sess *store.Session) *ReviewStep {
 	now := time.Now()
 	idx := dueIndex(sess, now)
 	if idx < 0 {
 		sess.ReviewTerm = ""
-		return &ReviewStep{Text: "Повторение завершено! Слов к повторению больше нет."}, nil
+		return &ReviewStep{Text: "Повторение завершено! Слов к повторению больше нет."}
 	}
 
 	sess.ReviewTerm = sess.Progress.SavedWords[idx].Term
@@ -111,7 +105,7 @@ func (t *Tutor) nextReviewStep(sess *store.Session) (*ReviewStep, error) {
 		Actions: []ReviewAction{
 			{Data: encodeAction(reviewShow, idx), Label: "Показать"},
 		},
-	}, nil
+	}
 }
 
 // revealStep shows the translation and the self-assessment buttons.
