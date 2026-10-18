@@ -371,11 +371,12 @@ func parseWords(raw string) ([]store.Word, error) {
 func addWords(p *store.Progress, words []store.Word) int {
 	seen := make(map[string]bool, len(p.SavedWords))
 	for _, w := range p.SavedWords {
-		seen[strings.ToLower(w.Term)] = true
+		seen[strings.ToLower(strings.TrimSpace(w.Term))] = true
 	}
 	added := 0
 	for _, w := range words {
-		key := strings.ToLower(strings.TrimSpace(w.Term))
+		w.Term = strings.TrimSpace(w.Term)
+		key := strings.ToLower(w.Term)
 		if key == "" || seen[key] {
 			continue
 		}
