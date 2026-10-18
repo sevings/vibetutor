@@ -3,6 +3,7 @@ package bot
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"vibetutor/internal/tutor"
@@ -79,5 +80,33 @@ func TestSplitMessageUTF8(t *testing.T) {
 	}
 	if strings.Join(chunks, "") != text {
 		t.Error("chunks do not reconstruct the text")
+	}
+}
+
+func TestSplitMessageInvalidUTF8Progress(t *testing.T) {
+	text := strings.Repeat("\x80", 20)
+	done := make(chan []string, 1)
+	go func() { done <- SplitMessage(text, 10) }()
+	select {
+	case chunks := <-done:
+		if len(chunks) != 2 {
+			t.Fatalf("got %d chunks, want 2", len(chunks))
+		}
+		for _, c := range chunks {
+			if len(c) > 10 {
+				t.Errorf("chunk too long: %d", len(c))
+			}
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SplitMessage did not terminate on invalid UTF-8")
+	}
+}
+
+func TestOutgoingChunks(t *testing.T) {
+	if chunks := outgoingChunks("hi"); len(chunks) != 1 || chunks[0] != "hi" {
+		t.Errorf("chunks = %v", chunks)
+	}
+	if chunks := outgoingChunks("   \n "); len(chunks) != 1 || chunks[0] != emptyReplyMsg {
+		t.Errorf("empty reply chunks = %v, want fallback", chunks)
 	}
 }

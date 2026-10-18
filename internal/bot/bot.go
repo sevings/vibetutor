@@ -3,6 +3,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -18,6 +19,8 @@ import (
 const maxMessageLen = 4000
 
 const notAllowedMsg = "Извини, доступ к этому боту ограничен."
+
+const emptyReplyMsg = "Модель вернула пустой ответ. Попробуй ещё раз."
 
 // reviewButtonUnique is the callback endpoint for review keyboard buttons.
 const reviewButtonUnique = "rev"
@@ -153,12 +156,21 @@ func (b *Bot) respond(c tele.Context, fn func(ctx context.Context) (string, erro
 		return
 	}
 
-	for _, chunk := range SplitMessage(reply, maxMessageLen) {
+	for _, chunk := range outgoingChunks(reply) {
 		if err := c.Send(chunk); err != nil {
 			b.log.Printf("send reply: %v", err)
 			return
 		}
 	}
+}
+
+// outgoingChunks splits a model reply into messages, falling back to a notice
+// when the reply is empty so the user is not left without a response.
+func outgoingChunks(reply string) []string {
+	if chunks := SplitMessage(reply, maxMessageLen); len(chunks) > 0 {
+		return chunks
+	}
+	return []string{emptyReplyMsg}
 }
 
 // reviewCommand starts a spaced-repetition session.
@@ -197,17 +209,32 @@ func (b *Bot) onReviewCallback(c tele.Context) error {
 		b.log.Printf("review action: %v", err)
 		return c.Respond(&tele.CallbackResponse{Text: "Ошибка. Попробуй ещё раз."})
 	}
+	if step != nil && step.Stale {
+		return c.Respond(&tele.CallbackResponse{Text: step.Text})
+	}
 	if err := c.Respond(); err != nil {
 		b.log.Printf("answer callback: %v", err)
 	}
 	if step == nil {
 		return nil
 	}
-	markup := reviewMarkup(step)
-	if markup != nil {
-		return c.Edit(step.Text, markup)
+	if markup := reviewMarkup(step); markup != nil {
+		if err := c.Edit(step.Text, markup); err != nil && !isMessageNotModified(err) {
+			return err
+		}
+		return nil
 	}
-	return c.Edit(step.Text)
+	// No actions left: editing without a markup removes the inline keyboard.
+	if err := c.Edit(step.Text); err != nil && !isMessageNotModified(err) {
+		return err
+	}
+	return nil
+}
+
+// isMessageNotModified reports whether err is Telegram rejecting a no-op edit,
+// which happens when the same button is tapped twice in quick succession.
+func isMessageNotModified(err error) bool {
+	return errors.Is(err, tele.ErrMessageNotModified) || errors.Is(err, tele.ErrSameMessageContent)
 }
 
 // sendReview sends a review screen to the chat.
@@ -260,6 +287,11 @@ func SplitMessage(text string, limit int) []string {
 			cut = i
 		}
 		cut = utf8SafeCut(text, cut)
+		if cut == 0 {
+			// The window is entirely UTF-8 continuation bytes; fall back to
+			// the raw limit so the loop always makes progress.
+			cut = limit
+		}
 		chunks = append(chunks, strings.TrimSpace(text[:cut]))
 		text = strings.TrimLeft(text[cut:], "\n")
 	}
