@@ -246,15 +246,30 @@ func isMessageNotModified(err error) bool {
 	return errors.Is(err, tele.ErrMessageNotModified) || errors.Is(err, tele.ErrSameMessageContent)
 }
 
-// sendReview sends a review screen to the chat.
+// sendReview sends a review screen to the chat, splitting long text and
+// attaching the action keyboard to the final chunk.
 func (b *Bot) sendReview(c tele.Context, step *tutor.ReviewStep) error {
 	if step == nil {
 		return nil
 	}
-	if markup := reviewMarkup(step); markup != nil {
-		return c.Send(step.Text, markup)
+	markup := reviewMarkup(step)
+	chunks := SplitMessage(step.Text, maxMessageLen)
+	if len(chunks) == 0 {
+		chunks = []string{emptyReplyMsg}
 	}
-	return c.Send(step.Text)
+	for i, chunk := range chunks {
+		last := i == len(chunks)-1
+		var err error
+		if last && markup != nil {
+			err = c.Send(chunk, markup)
+		} else {
+			err = c.Send(chunk)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // reviewMarkup renders the action buttons as an inline keyboard.
