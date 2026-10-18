@@ -75,7 +75,7 @@ docker run -d --name vibetutor --restart unless-stopped \
   -e VIBETUTOR_OPENAI_MODEL=gpt-4o-mini \
   -e VIBETUTOR_ALLOWED_USERS=123456789 \
   -e VIBETUTOR_DATABASE=/data/vibetutor.db \
-  -v "$PWD/data:/data" \
+  -v vibetutor-data:/data \
   vibetutor
 ```
 
@@ -86,7 +86,10 @@ cp .env.example .env   # заполните токен и ключ
 docker compose up -d --build
 ```
 
-База данных сохраняется в `./data/vibetutor.db` на хосте.
+База данных сохраняется в именованном томе `vibetutor-data`. Используйте
+именованный том, а не bind-mount на `./data`: контейнер работает под
+непривилегированным пользователем и не сможет писать в каталог хоста,
+принадлежащий другому UID.
 
 ## Конфигурация
 

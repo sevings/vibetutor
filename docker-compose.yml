@@ -11,4 +11,7 @@ services:
       VIBETUTOR_ALLOWED_USERS: ${VIBETUTOR_ALLOWED_USERS:-}
       VIBETUTOR_DATABASE: /data/vibetutor.db
     volumes:
-      - ./data:/data
+      - vibetutor-data:/data
+
+volumes:
+  vibetutor-data:
