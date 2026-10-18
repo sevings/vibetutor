@@ -315,6 +315,25 @@ func TestReset(t *testing.T) {
 	}
 }
 
+func TestResetPreservesReviewGen(t *testing.T) {
+	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
+	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
+	if _, err := tut.Review(1); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := st.Load(1)
+	if before.ReviewGen == 0 {
+		t.Fatal("expected a nonzero generation after starting a review")
+	}
+	if _, err := tut.Reset(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := st.Load(1)
+	if after.ReviewGen != before.ReviewGen {
+		t.Errorf("generation = %d, want %d preserved across reset", after.ReviewGen, before.ReviewGen)
+	}
+}
+
 func TestProfile(t *testing.T) {
 	fake := &fakeAI{replies: []string{"x"}}
 	tut, st := newTutor(t, fake)

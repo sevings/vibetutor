@@ -118,7 +118,17 @@ func (t *Tutor) Profile(_ context.Context, userID int64) (string, error) {
 // Reset clears all stored data for the user.
 func (t *Tutor) Reset(_ context.Context, userID int64) (string, error) {
 	defer t.lock(userID)()
-	if err := t.store.Save(userID, &store.Session{Mode: store.ModeChat}); err != nil {
+	prev, err := t.store.Load(userID)
+	if err != nil {
+		return "", err
+	}
+	// Preserve the review generation so a button from before the reset cannot
+	// be accepted if the same word later lands at the same index.
+	gen := 0
+	if prev != nil {
+		gen = prev.ReviewGen
+	}
+	if err := t.store.Save(userID, &store.Session{Mode: store.ModeChat, ReviewGen: gen}); err != nil {
 		return "", err
 	}
 	return "Готово. Профиль, план и прогресс сброшены. Начни заново командой /setup.", nil
