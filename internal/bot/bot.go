@@ -1,0 +1,194 @@
+// Package bot wires the tutor logic to Telegram using telebot.v4.
+package bot
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	tele "gopkg.in/telebot.v4"
+
+	"vibetutor/internal/config"
+	"vibetutor/internal/tutor"
+)
+
+// maxMessageLen is a safe chunk size below Telegram's 4096-character limit.
+const maxMessageLen = 4000
+
+const notAllowedMsg = "Извини, доступ к этому боту ограничен."
+
+// Bot is the Telegram adapter around the tutor.
+type Bot struct {
+	api   *tele.Bot
+	tutor *tutor.Tutor
+	cfg   *config.Config
+	log   *log.Logger
+	ctx   context.Context
+}
+
+// New constructs the bot. The provided context is used for model calls and
+// can be cancelled to abort in-flight requests on shutdown.
+func New(ctx context.Context, cfg *config.Config, t *tutor.Tutor, logger *log.Logger) (*Bot, error) {
+	api, err := tele.NewBot(tele.Settings{
+		Token:  cfg.TelegramToken,
+		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+		OnError: func(err error, c tele.Context) {
+			logger.Printf("telegram error: %v", err)
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create telegram bot: %w", err)
+	}
+	return &Bot{api: api, tutor: t, cfg: cfg, log: logger, ctx: ctx}, nil
+}
+
+// Run registers the handlers, publishes the command menu and starts polling.
+func (b *Bot) Run() {
+	b.register()
+	b.publishCommands()
+	b.log.Printf("bot started as @%s", b.api.Me.Username)
+	b.api.Start()
+}
+
+// Stop gracefully stops the polling loop.
+func (b *Bot) Stop() { b.api.Stop() }
+
+func (b *Bot) register() {
+	b.api.Handle("/start", b.command(func(context.Context, int64) (string, error) {
+		return b.tutor.Welcome(), nil
+	}))
+	b.api.Handle("/help", b.command(func(context.Context, int64) (string, error) {
+		return b.tutor.Help(), nil
+	}))
+	b.api.Handle("/setup", b.command(b.tutor.Setup))
+	b.api.Handle("/profile", b.command(b.tutor.Profile))
+	b.api.Handle("/plan", b.command(b.tutor.Plan))
+	b.api.Handle("/lesson", b.commandArg(b.tutor.Lesson))
+	b.api.Handle("/save", b.command(b.tutor.SaveWords))
+	b.api.Handle("/reset", b.command(b.tutor.Reset))
+	b.api.Handle(tele.OnText, b.onText)
+}
+
+func (b *Bot) publishCommands() {
+	commands := []tele.Command{
+		{Text: "start", Description: "Начать работу"},
+		{Text: "setup", Description: "Настроить профиль"},
+		{Text: "profile", Description: "Показать профиль"},
+		{Text: "plan", Description: "Составить план уроков"},
+		{Text: "lesson", Description: "Начать урок"},
+		{Text: "save", Description: "Сохранить слова урока"},
+		{Text: "reset", Description: "Сбросить прогресс"},
+		{Text: "help", Description: "Справка"},
+	}
+	if err := b.api.SetCommands(commands); err != nil {
+		b.log.Printf("set commands: %v", err)
+	}
+}
+
+// command adapts a tutor method without arguments into a telebot handler.
+func (b *Bot) command(fn func(ctx context.Context, userID int64) (string, error)) tele.HandlerFunc {
+	return b.commandArg(func(ctx context.Context, userID int64, _ string) (string, error) {
+		return fn(ctx, userID)
+	})
+}
+
+// commandArg adapts a tutor method that reads the command argument.
+func (b *Bot) commandArg(fn func(ctx context.Context, userID int64, arg string) (string, error)) tele.HandlerFunc {
+	return func(c tele.Context) error {
+		sender := c.Sender()
+		if sender == nil {
+			return nil
+		}
+		if !b.cfg.IsAllowed(sender.ID) {
+			return c.Send(notAllowedMsg)
+		}
+		b.respond(c, func(ctx context.Context) (string, error) {
+			return fn(ctx, sender.ID, c.Data())
+		})
+		return nil
+	}
+}
+
+func (b *Bot) onText(c tele.Context) error {
+	sender := c.Sender()
+	if sender == nil {
+		return nil
+	}
+	if !b.cfg.IsAllowed(sender.ID) {
+		return c.Send(notAllowedMsg)
+	}
+
+	text := c.Text()
+	if strings.HasPrefix(strings.TrimSpace(text), "/") {
+		return c.Send("Неизвестная команда. Список команд: /help")
+	}
+
+	b.respond(c, func(ctx context.Context) (string, error) {
+		return b.tutor.Handle(ctx, sender.ID, text)
+	})
+	return nil
+}
+
+// respond shows a typing indicator, runs fn and sends the (possibly long)
+// reply back to the chat.
+func (b *Bot) respond(c tele.Context, fn func(ctx context.Context) (string, error)) {
+	if err := c.Notify(tele.Typing); err != nil {
+		b.log.Printf("notify typing: %v", err)
+	}
+
+	reply, err := fn(b.ctx)
+	if err != nil {
+		b.log.Printf("handle request: %v", err)
+		if sendErr := c.Send("Не получилось обработать запрос. Попробуй ещё раз чуть позже."); sendErr != nil {
+			b.log.Printf("send error notice: %v", sendErr)
+		}
+		return
+	}
+
+	for _, chunk := range SplitMessage(reply, maxMessageLen) {
+		if err := c.Send(chunk); err != nil {
+			b.log.Printf("send reply: %v", err)
+			return
+		}
+	}
+}
+
+// SplitMessage splits text into chunks no longer than limit bytes, trying to
+// break on newlines and never splitting a UTF-8 rune.
+func SplitMessage(text string, limit int) []string {
+	if limit <= 0 {
+		limit = maxMessageLen
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	if len(text) <= limit {
+		return []string{text}
+	}
+
+	var chunks []string
+	for len(text) > limit {
+		cut := limit
+		if i := strings.LastIndexByte(text[:limit], '\n'); i > 0 {
+			cut = i
+		}
+		cut = utf8SafeCut(text, cut)
+		chunks = append(chunks, strings.TrimSpace(text[:cut]))
+		text = strings.TrimLeft(text[cut:], "\n")
+	}
+	if strings.TrimSpace(text) != "" {
+		chunks = append(chunks, strings.TrimSpace(text))
+	}
+	return chunks
+}
+
+// utf8SafeCut moves a byte index back until it is on a rune boundary.
+func utf8SafeCut(s string, cut int) int {
+	for cut > 0 && cut < len(s) && s[cut]&0xC0 == 0x80 {
+		cut--
+	}
+	return cut
+}
