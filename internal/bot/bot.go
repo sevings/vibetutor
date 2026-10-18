@@ -37,6 +37,9 @@ type Bot struct {
 // New constructs the bot. The provided context is used for model calls and
 // can be cancelled to abort in-flight requests on shutdown.
 func New(ctx context.Context, cfg *config.Config, t *tutor.Tutor, logger *log.Logger) (*Bot, error) {
+	if logger == nil {
+		logger = log.Default()
+	}
 	api, err := tele.NewBot(tele.Settings{
 		Token:  cfg.TelegramToken,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
