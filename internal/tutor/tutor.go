@@ -349,18 +349,20 @@ func appendLessonOutput(existing, reply string) string {
 }
 
 // parseWords extracts a JSON array of words from a model reply that may
-// contain surrounding text. Decoding stops at the end of the first array, so
-// trailing bracketed text after it is ignored.
+// contain surrounding text. It scans for the first bracket that begins a valid
+// word array, so unrelated bracketed text before or after the array is ignored.
 func parseWords(raw string) ([]store.Word, error) {
-	start := strings.Index(raw, "[")
-	if start == -1 {
-		return nil, fmt.Errorf("в ответе нет JSON-массива")
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '[' {
+			continue
+		}
+		var words []store.Word
+		if err := json.NewDecoder(strings.NewReader(raw[i:])).Decode(&words); err != nil {
+			continue
+		}
+		return words, nil
 	}
-	var words []store.Word
-	if err := json.NewDecoder(strings.NewReader(raw[start:])).Decode(&words); err != nil {
-		return nil, err
-	}
-	return words, nil
+	return nil, fmt.Errorf("в ответе нет JSON-массива")
 }
 
 // addWords appends words, skipping duplicates, and returns how many were added.

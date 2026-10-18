@@ -324,6 +324,16 @@ func TestParseWordsTrailingBrackets(t *testing.T) {
 	}
 }
 
+func TestParseWordsLeadingBrackets(t *testing.T) {
+	words, err := parseWords(`Смотри пример [1] и словарь: [{"term":"a","translation":"б"}]`)
+	if err != nil {
+		t.Fatalf("parseWords: %v", err)
+	}
+	if len(words) != 1 || words[0].Term != "a" {
+		t.Errorf("words = %+v", words)
+	}
+}
+
 func TestLessonAccumulatesOutput(t *testing.T) {
 	fake := &fakeAI{replies: []string{
 		"plan", "УРОК ЧАСТЬ 1", "УРОК ЧАСТЬ 2",
