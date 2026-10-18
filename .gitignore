@@ -1,0 +1,16 @@
+# Build artifacts
+/bin/
+/vibetutor
+*.exe
+
+# Local runtime data (user profiles, plans, progress)
+/data/
+
+# Local secrets / configuration
+/config.txt
+.env
+
+# Editor and OS noise
+.idea/
+.vscode/
+.DS_Store
