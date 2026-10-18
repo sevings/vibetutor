@@ -1,8 +1,11 @@
 package tutor
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"log"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,7 +38,7 @@ func newTutor(t *testing.T, client ai.Client) (*Tutor, store.Store) {
 		t.Fatalf("store: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return New(client, st), st
+	return New(client, st, log.New(io.Discard, "", 0)), st
 }
 
 func mustSetup(t *testing.T, tut *Tutor, st store.Store, userID int64) {
@@ -227,13 +230,33 @@ func TestSaveWordsNothingToSave(t *testing.T) {
 
 func TestSaveWordsBadJSON(t *testing.T) {
 	fake := &fakeAI{replies: []string{"plan", "lesson", "no json here"}}
-	tut, st := newTutor(t, fake)
+	st, err := store.NewSQLite(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	var logs bytes.Buffer
+	tut := New(fake, st, log.New(&logs, "", 0))
 	ctx := context.Background()
 	mustSetup(t, tut, st, 1)
 	_, _ = tut.Plan(ctx, 1)
 	_, _ = tut.Lesson(ctx, 1, "")
-	if _, err := tut.SaveWords(ctx, 1); err == nil {
-		t.Fatal("expected error for unparseable reply")
+
+	msg, err := tut.SaveWords(ctx, 1)
+	if err != nil {
+		t.Fatalf("SaveWords should report the problem to the user, got error: %v", err)
+	}
+	if !strings.Contains(msg, "разобрать") {
+		t.Errorf("message = %q, want a user-facing hint", msg)
+	}
+	if !strings.Contains(logs.String(), "parse model reply") {
+		t.Errorf("parse failure not logged: %q", logs.String())
+	}
+
+	// The failed parse must not mark the lesson as saved or completed.
+	sess, _ := st.Load(1)
+	if len(sess.Progress.SavedWords) != 0 || len(sess.Progress.CompletedLessons) != 0 {
+		t.Errorf("progress changed on parse failure: %+v", sess.Progress)
 	}
 }
 

@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"vibetutor/internal/ai"
 	"vibetutor/internal/store"
@@ -35,11 +37,27 @@ var setupQuestions = []string{
 type Tutor struct {
 	ai    ai.Client
 	store store.Store
+	log   *log.Logger
+
+	// locks serializes handlers per user so a load-modify-save sequence cannot
+	// interleave with another handler for the same user.
+	locks sync.Map // int64 -> *sync.Mutex
 }
 
 // New returns a Tutor.
-func New(client ai.Client, s store.Store) *Tutor {
-	return &Tutor{ai: client, store: s}
+func New(client ai.Client, s store.Store, logger *log.Logger) *Tutor {
+	if logger == nil {
+		logger = log.Default()
+	}
+	return &Tutor{ai: client, store: s, log: logger}
+}
+
+// lock acquires the per-user mutex and returns the matching unlock function.
+func (t *Tutor) lock(userID int64) func() {
+	v, _ := t.locks.LoadOrStore(userID, &sync.Mutex{})
+	m := v.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
 }
 
 // Welcome is the message shown on /start.
@@ -69,6 +87,7 @@ func (t *Tutor) Help() string {
 
 // Setup (re)starts the profile questionnaire.
 func (t *Tutor) Setup(_ context.Context, userID int64) (string, error) {
+	defer t.lock(userID)()
 	sess, err := t.store.Load(userID)
 	if err != nil {
 		return "", err
@@ -98,6 +117,7 @@ func (t *Tutor) Profile(_ context.Context, userID int64) (string, error) {
 
 // Reset clears all stored data for the user.
 func (t *Tutor) Reset(_ context.Context, userID int64) (string, error) {
+	defer t.lock(userID)()
 	if err := t.store.Save(userID, &store.Session{Mode: store.ModeChat}); err != nil {
 		return "", err
 	}
@@ -106,6 +126,7 @@ func (t *Tutor) Reset(_ context.Context, userID int64) (string, error) {
 
 // Handle processes a free-form message according to the current mode.
 func (t *Tutor) Handle(ctx context.Context, userID int64, text string) (string, error) {
+	defer t.lock(userID)()
 	sess, err := t.store.Load(userID)
 	if err != nil {
 		return "", err
@@ -144,6 +165,7 @@ func (t *Tutor) continueSetup(userID int64, sess *store.Session, answer string) 
 
 // Plan generates a lesson plan with the model.
 func (t *Tutor) Plan(ctx context.Context, userID int64) (string, error) {
+	defer t.lock(userID)()
 	sess, err := t.store.Load(userID)
 	if err != nil {
 		return "", err
@@ -171,6 +193,7 @@ func (t *Tutor) Plan(ctx context.Context, userID int64) (string, error) {
 
 // Lesson starts a lesson, either the given number or the next one.
 func (t *Tutor) Lesson(ctx context.Context, userID int64, arg string) (string, error) {
+	defer t.lock(userID)()
 	sess, err := t.store.Load(userID)
 	if err != nil {
 		return "", err
@@ -249,6 +272,7 @@ func (t *Tutor) reply(ctx context.Context, userID int64, sess *store.Session, te
 
 // SaveWords extracts vocabulary from the last lesson and stores it.
 func (t *Tutor) SaveWords(ctx context.Context, userID int64) (string, error) {
+	defer t.lock(userID)()
 	sess, err := t.store.Load(userID)
 	if err != nil {
 		return "", err
@@ -267,7 +291,8 @@ func (t *Tutor) SaveWords(ctx context.Context, userID int64) (string, error) {
 
 	words, err := parseWords(raw)
 	if err != nil {
-		return "", fmt.Errorf("не удалось разобрать список слов, попробуй ещё раз: %w", err)
+		t.log.Printf("save words: parse model reply: %v", err)
+		return "Не удалось разобрать список слов. Попробуй ещё раз командой /save.", nil
 	}
 	added := addWords(&sess.Progress, words)
 

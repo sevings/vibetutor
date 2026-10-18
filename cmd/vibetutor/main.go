@@ -42,7 +42,7 @@ func main() {
 	defer st.Close()
 
 	model := ai.NewOpenAI(cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAITimeout)
-	tut := tutor.New(model, st)
+	tut := tutor.New(model, st, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
