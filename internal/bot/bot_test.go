@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"vibetutor/internal/tutor"
 )
 
 func TestSplitMessageShort(t *testing.T) {
@@ -45,6 +47,25 @@ func TestSplitMessageNewlineBoundary(t *testing.T) {
 		if strings.HasPrefix(c, "\n") || strings.HasSuffix(c, "\n") {
 			t.Errorf("chunk has stray newline: %q", c)
 		}
+	}
+}
+
+func TestReviewMarkup(t *testing.T) {
+	step := &tutor.ReviewStep{Actions: []tutor.ReviewAction{{Data: "show", Label: "Показать"}}}
+	markup := reviewMarkup(step)
+	if markup == nil || len(markup.InlineKeyboard) != 1 || len(markup.InlineKeyboard[0]) != 1 {
+		t.Fatalf("markup = %+v", markup)
+	}
+	btn := markup.InlineKeyboard[0][0]
+	if btn.Unique != reviewButtonUnique || btn.Data != "show" || btn.Text != "Показать" {
+		t.Errorf("button = %+v", btn)
+	}
+
+	if reviewMarkup(&tutor.ReviewStep{}) != nil {
+		t.Error("expected nil markup when there are no actions")
+	}
+	if reviewMarkup(nil) != nil {
+		t.Error("expected nil markup for nil step")
 	}
 }
 

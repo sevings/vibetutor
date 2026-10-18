@@ -2,7 +2,11 @@
 // progress and conversation history).
 package store
 
-import "vibetutor/internal/ai"
+import (
+	"time"
+
+	"vibetutor/internal/ai"
+)
 
 // Modes a user session can be in.
 const (
@@ -25,11 +29,17 @@ func (p Profile) Complete() bool {
 	return p.Native != "" && p.Learning != "" && p.Explanation != "" && p.Level != "" && p.Goal != ""
 }
 
-// Word is a vocabulary item saved from a lesson.
+// Word is a vocabulary item with its spaced-repetition schedule.
 type Word struct {
 	Term        string `json:"term"`
 	Translation string `json:"translation"`
 	Note        string `json:"note,omitempty"`
+
+	// Spaced-repetition state (SM-2). Zero values mean "never reviewed".
+	Ease     float64   `json:"ease,omitempty"`
+	Interval int       `json:"interval,omitempty"`
+	Reps     int       `json:"reps,omitempty"`
+	DueAt    time.Time `json:"due_at,omitempty"`
 }
 
 // Progress tracks the student's achievements.
@@ -51,6 +61,9 @@ type Session struct {
 	Mode         string `json:"mode,omitempty"`
 	SetupStep    int    `json:"setup_step,omitempty"`
 	LessonNumber int    `json:"lesson_number,omitempty"`
+
+	// ReviewTerm is the word currently being reviewed.
+	ReviewTerm string `json:"review_term,omitempty"`
 }
 
 // IsSetup reports whether the user is currently answering setup questions.

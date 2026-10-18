@@ -19,6 +19,9 @@ const maxMessageLen = 4000
 
 const notAllowedMsg = "Извини, доступ к этому боту ограничен."
 
+// reviewButtonUnique is the callback endpoint for review keyboard buttons.
+const reviewButtonUnique = "rev"
+
 // Bot is the Telegram adapter around the tutor.
 type Bot struct {
 	api   *tele.Bot
@@ -67,6 +70,8 @@ func (b *Bot) register() {
 	b.api.Handle("/plan", b.command(b.tutor.Plan))
 	b.api.Handle("/lesson", b.commandArg(b.tutor.Lesson))
 	b.api.Handle("/save", b.command(b.tutor.SaveWords))
+	b.api.Handle("/review", b.reviewCommand)
+	b.api.Handle(&tele.InlineButton{Unique: reviewButtonUnique}, b.onReviewCallback)
 	b.api.Handle("/reset", b.command(b.tutor.Reset))
 	b.api.Handle(tele.OnText, b.onText)
 }
@@ -79,6 +84,7 @@ func (b *Bot) publishCommands() {
 		{Text: "plan", Description: "Составить план уроков"},
 		{Text: "lesson", Description: "Начать урок"},
 		{Text: "save", Description: "Сохранить слова урока"},
+		{Text: "review", Description: "Повторять слова"},
 		{Text: "reset", Description: "Сбросить прогресс"},
 		{Text: "help", Description: "Справка"},
 	}
@@ -153,6 +159,84 @@ func (b *Bot) respond(c tele.Context, fn func(ctx context.Context) (string, erro
 			return
 		}
 	}
+}
+
+// reviewCommand starts a spaced-repetition session.
+func (b *Bot) reviewCommand(c tele.Context) error {
+	sender := c.Sender()
+	if sender == nil {
+		return nil
+	}
+	if !b.cfg.IsAllowed(sender.ID) {
+		return c.Send(notAllowedMsg)
+	}
+	if err := c.Notify(tele.Typing); err != nil {
+		b.log.Printf("notify typing: %v", err)
+	}
+
+	step, err := b.tutor.Review(sender.ID)
+	if err != nil {
+		b.log.Printf("start review: %v", err)
+		return c.Send("Не получилось начать повторение. Попробуй позже.")
+	}
+	return b.sendReview(c, step)
+}
+
+// onReviewCallback reacts to the review keyboard buttons.
+func (b *Bot) onReviewCallback(c tele.Context) error {
+	sender := c.Sender()
+	if sender == nil {
+		return c.Respond()
+	}
+	if !b.cfg.IsAllowed(sender.ID) {
+		return c.Respond(&tele.CallbackResponse{Text: notAllowedMsg})
+	}
+
+	step, err := b.tutor.ReviewAction(sender.ID, c.Data())
+	if err != nil {
+		b.log.Printf("review action: %v", err)
+		return c.Respond(&tele.CallbackResponse{Text: "Ошибка. Попробуй ещё раз."})
+	}
+	if err := c.Respond(); err != nil {
+		b.log.Printf("answer callback: %v", err)
+	}
+	if step == nil {
+		return nil
+	}
+	markup := reviewMarkup(step)
+	if markup != nil {
+		return c.Edit(step.Text, markup)
+	}
+	return c.Edit(step.Text)
+}
+
+// sendReview sends a review screen to the chat.
+func (b *Bot) sendReview(c tele.Context, step *tutor.ReviewStep) error {
+	if step == nil {
+		return nil
+	}
+	if markup := reviewMarkup(step); markup != nil {
+		return c.Send(step.Text, markup)
+	}
+	return c.Send(step.Text)
+}
+
+// reviewMarkup renders the action buttons as an inline keyboard.
+func reviewMarkup(step *tutor.ReviewStep) *tele.ReplyMarkup {
+	if step == nil || len(step.Actions) == 0 {
+		return nil
+	}
+	markup := &tele.ReplyMarkup{}
+	rows := make([][]tele.InlineButton, 0, len(step.Actions))
+	for _, a := range step.Actions {
+		rows = append(rows, []tele.InlineButton{{
+			Unique: reviewButtonUnique,
+			Text:   a.Label,
+			Data:   a.Data,
+		}})
+	}
+	markup.InlineKeyboard = rows
+	return markup
 }
 
 // SplitMessage splits text into chunks no longer than limit bytes, trying to

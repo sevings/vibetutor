@@ -40,6 +40,7 @@ type record struct {
 	Mode         string
 	SetupStep    int
 	LessonNumber int
+	ReviewTerm   string
 
 	UpdatedAt time.Time
 }
@@ -122,6 +123,7 @@ func toRecord(userID int64, sess *Session) *record {
 		Mode:             sess.Mode,
 		SetupStep:        sess.SetupStep,
 		LessonNumber:     sess.LessonNumber,
+		ReviewTerm:       sess.ReviewTerm,
 	}
 }
 
@@ -145,5 +147,6 @@ func (r *record) toSession() *Session {
 		Mode:         r.Mode,
 		SetupStep:    r.SetupStep,
 		LessonNumber: r.LessonNumber,
+		ReviewTerm:   r.ReviewTerm,
 	}
 }
