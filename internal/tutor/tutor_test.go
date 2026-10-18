@@ -215,6 +215,9 @@ func TestSaveWords(t *testing.T) {
 	if sess.InLesson() {
 		t.Error("should leave lesson mode after saving")
 	}
+	if sess.LastLessonOutput != "" || sess.LessonNumber != 0 {
+		t.Errorf("lesson state not cleared after save: %+v", sess)
+	}
 }
 
 func TestSaveWordsNothingToSave(t *testing.T) {

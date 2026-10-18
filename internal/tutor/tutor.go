@@ -302,6 +302,8 @@ func (t *Tutor) SaveWords(ctx context.Context, userID int64) (string, error) {
 		markLessonDone(&sess.Progress, sess.LessonNumber)
 	}
 	sess.Mode = store.ModeChat
+	sess.LastLessonOutput = ""
+	sess.LessonNumber = 0
 
 	if err := t.store.Save(userID, sess); err != nil {
 		return "", err
