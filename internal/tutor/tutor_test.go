@@ -367,6 +367,30 @@ func TestLessonAccumulatesOutput(t *testing.T) {
 	}
 }
 
+func TestPlanResetsLessonState(t *testing.T) {
+	fake := &fakeAI{replies: []string{"plan", "lesson", "plan2"}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Lesson(ctx, 1, ""); err != nil {
+		t.Fatal(err)
+	}
+	if sess, _ := st.Load(1); sess.LessonNumber != 1 || sess.LastLessonOutput == "" {
+		t.Fatalf("lesson state not set: %+v", sess)
+	}
+
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	sess, _ := st.Load(1)
+	if sess.LessonNumber != 0 || sess.LastLessonOutput != "" {
+		t.Errorf("plan did not clear stale lesson state: %+v", sess)
+	}
+}
+
 func TestSplitHistoryLimit(t *testing.T) {
 	history := make([]ai.Message, maxHistory+10)
 	for i := range history {

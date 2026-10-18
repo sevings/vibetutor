@@ -185,6 +185,8 @@ func (t *Tutor) Plan(ctx context.Context, userID int64) (string, error) {
 	sess.Plan = reply
 	sess.Mode = store.ModeChat
 	sess.History = nil
+	sess.LastLessonOutput = ""
+	sess.LessonNumber = 0
 	if err := t.store.Save(userID, sess); err != nil {
 		return "", err
 	}
