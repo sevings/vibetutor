@@ -65,8 +65,12 @@ func NewSQLite(path string) (*SQLiteStore, error) {
 	// A single connection avoids SQLITE_BUSY between concurrent writers and
 	// keeps the connection-local pragmas effective.
 	sqlDB.SetMaxOpenConns(1)
-	db.Exec("PRAGMA journal_mode=WAL")
-	db.Exec("PRAGMA busy_timeout=5000")
+	if err := db.Exec("PRAGMA journal_mode=WAL").Error; err != nil {
+		return nil, fmt.Errorf("set journal_mode: %w", err)
+	}
+	if err := db.Exec("PRAGMA busy_timeout=5000").Error; err != nil {
+		return nil, fmt.Errorf("set busy_timeout: %w", err)
+	}
 
 	if err := db.AutoMigrate(&record{}); err != nil {
 		return nil, fmt.Errorf("migrate database: %w", err)
