@@ -102,6 +102,19 @@ func TestSplitMessageInvalidUTF8Progress(t *testing.T) {
 	}
 }
 
+func TestSplitMessageNoEmptyChunks(t *testing.T) {
+	text := "ab" + strings.Repeat(" ", 30) + "cd"
+	chunks := SplitMessage(text, 10)
+	for _, c := range chunks {
+		if c == "" {
+			t.Fatalf("empty chunk in %q", chunks)
+		}
+	}
+	if len(chunks) != 2 || chunks[0] != "ab" || chunks[1] != "cd" {
+		t.Errorf("chunks = %q, want [ab cd]", chunks)
+	}
+}
+
 func TestOutgoingChunks(t *testing.T) {
 	if chunks := outgoingChunks("hi"); len(chunks) != 1 || chunks[0] != "hi" {
 		t.Errorf("chunks = %v", chunks)

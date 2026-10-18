@@ -292,11 +292,13 @@ func SplitMessage(text string, limit int) []string {
 			// the raw limit so the loop always makes progress.
 			cut = limit
 		}
-		chunks = append(chunks, strings.TrimSpace(text[:cut]))
+		if chunk := strings.TrimSpace(text[:cut]); chunk != "" {
+			chunks = append(chunks, chunk)
+		}
 		text = strings.TrimLeft(text[cut:], "\n")
 	}
-	if strings.TrimSpace(text) != "" {
-		chunks = append(chunks, strings.TrimSpace(text))
+	if chunk := strings.TrimSpace(text); chunk != "" {
+		chunks = append(chunks, chunk)
 	}
 	return chunks
 }
