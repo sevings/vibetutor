@@ -2,6 +2,7 @@ package tutor
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,11 +40,11 @@ func TestReviewFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Review: %v", err)
 	}
-	if len(step.Actions) != 1 || step.Actions[0].Data != reviewShow {
+	if len(step.Actions) != 1 {
 		t.Fatalf("expected show action, got %v", step.Actions)
 	}
 
-	revealed, err := tut.ReviewAction(1, reviewShow)
+	revealed, err := tut.ReviewAction(1, step.Actions[0].Data)
 	if err != nil {
 		t.Fatalf("show: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestReviewFlow(t *testing.T) {
 		t.Errorf("translation missing: %q", revealed.Text)
 	}
 
-	done, err := tut.ReviewAction(1, reviewGood)
+	done, err := tut.ReviewAction(1, revealed.Actions[2].Data)
 	if err != nil {
 		t.Fatalf("rate: %v", err)
 	}
@@ -87,8 +88,13 @@ func TestReviewDueFiltering(t *testing.T) {
 		t.Errorf("wrong word selected: %q", step.Text)
 	}
 
+	revealed, err := tut.ReviewAction(1, step.Actions[0].Data)
+	if err != nil {
+		t.Fatalf("show: %v", err)
+	}
+
 	// Rating the only due word should finish the session.
-	done, err := tut.ReviewAction(1, reviewEasy)
+	done, err := tut.ReviewAction(1, revealed.Actions[3].Data)
 	if err != nil {
 		t.Fatalf("rate: %v", err)
 	}
@@ -97,12 +103,101 @@ func TestReviewDueFiltering(t *testing.T) {
 	}
 }
 
-func TestReviewActionWithoutSession(t *testing.T) {
+func TestReviewActionWithoutArmedWord(t *testing.T) {
 	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
 	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
 
-	if _, err := tut.ReviewAction(1, reviewShow); err != nil {
+	step, err := tut.ReviewAction(1, encodeAction(reviewShow, 0))
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !step.Stale {
+		t.Errorf("expected stale step, got %+v", step)
+	}
+	if step.Actions != nil {
+		t.Errorf("expected stale step without actions, got %v", step.Actions)
+	}
+}
+
+func TestReviewStaleButton(t *testing.T) {
+	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
+	seedWords(t, st, 1,
+		store.Word{Term: "one", Translation: "один"},
+		store.Word{Term: "two", Translation: "два"},
+	)
+
+	step, err := tut.Review(1)
+	if err != nil {
+		t.Fatalf("Review: %v", err)
+	}
+	stale := step.Actions[0].Data
+
+	revealed, err := tut.ReviewAction(1, stale)
+	if err != nil {
+		t.Fatalf("show: %v", err)
+	}
+	if _, err := tut.ReviewAction(1, revealed.Actions[2].Data); err != nil {
+		t.Fatalf("rate: %v", err)
+	}
+
+	// The first message's button now points at a word that is no longer armed.
+	got, err := tut.ReviewAction(1, stale)
+	if err != nil {
+		t.Fatalf("stale show: %v", err)
+	}
+	if !got.Stale {
+		t.Errorf("expected stale step, got %+v", got)
+	}
+	if got.Actions != nil {
+		t.Errorf("expected stale step, got %v", got.Actions)
+	}
+}
+
+func TestCountDue(t *testing.T) {
+	now := time.Now()
+	sess := &store.Session{Progress: store.Progress{SavedWords: []store.Word{
+		{Term: "a"},
+		{Term: "b", DueAt: now.Add(time.Hour)},
+		{Term: "c", DueAt: now},
+	}}}
+	if got := countDue(sess, now); got != 2 {
+		t.Errorf("countDue = %d, want 2", got)
+	}
+}
+
+func TestReviewConcurrentRating(t *testing.T) {
+	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
+	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
+
+	step, err := tut.Review(1)
+	if err != nil {
+		t.Fatalf("Review: %v", err)
+	}
+	revealed, err := tut.ReviewAction(1, step.Actions[0].Data)
+	if err != nil {
+		t.Fatalf("show: %v", err)
+	}
+	rating := revealed.Actions[2].Data // "Помню"
+
+	// Rapid repeated taps must not schedule the same word more than once.
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := tut.ReviewAction(1, rating); err != nil {
+				t.Errorf("review action: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	sess, _ := st.Load(1)
+	if w := sess.Progress.SavedWords[0]; w.Reps != 1 {
+		t.Errorf("word rated %d times, want 1: %+v", w.Reps, w)
+	}
+	if sess.ReviewTerm != "" {
+		t.Errorf("ReviewTerm = %q, want empty after completion", sess.ReviewTerm)
 	}
 }
 
