@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,6 +25,11 @@ const emptyReplyMsg = "Модель вернула пустой ответ. По
 
 // reviewButtonUnique is the callback endpoint for review keyboard buttons.
 const reviewButtonUnique = "rev"
+
+// commandPattern matches a Telegram command at the start of a message, e.g.
+// "/help" or "/lesson@mybot 3". It is used to distinguish unknown commands from
+// ordinary text that merely begins with a slash (e.g. a phonetic answer).
+var commandPattern = regexp.MustCompile(`^/[A-Za-z0-9_]+(@[A-Za-z0-9_]+)?(\s|$)`)
 
 // Bot is the Telegram adapter around the tutor.
 type Bot struct {
@@ -133,7 +139,7 @@ func (b *Bot) onText(c tele.Context) error {
 	}
 
 	text := c.Text()
-	if strings.HasPrefix(strings.TrimSpace(text), "/") {
+	if commandPattern.MatchString(strings.TrimSpace(text)) {
 		return c.Send("Неизвестная команда. Список команд: /help")
 	}
 

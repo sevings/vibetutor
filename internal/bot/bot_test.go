@@ -123,3 +123,25 @@ func TestOutgoingChunks(t *testing.T) {
 		t.Errorf("empty reply chunks = %v, want fallback", chunks)
 	}
 }
+
+func TestCommandPattern(t *testing.T) {
+	commands := []string{"/help", "/lesson 3", "/start@vibetutor_bot", "/save", "  /reset"}
+	for _, text := range commands {
+		if !commandPattern.MatchString(strings.TrimSpace(text)) {
+			t.Errorf("%q should be treated as a command", text)
+		}
+	}
+
+	answers := []string{
+		"/b/ sound",
+		"и/или",
+		"/path/to/file",
+		"hello /world",
+		"2/3",
+	}
+	for _, text := range answers {
+		if commandPattern.MatchString(strings.TrimSpace(text)) {
+			t.Errorf("%q should not be treated as a command", text)
+		}
+	}
+}
