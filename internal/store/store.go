@@ -63,6 +63,10 @@ type Session struct {
 
 	// ReviewTerm is the word currently being reviewed.
 	ReviewTerm string `json:"review_term,omitempty"`
+
+	// ReviewGen identifies the current review session. It is bumped whenever a
+	// new session starts so buttons from an older session are rejected.
+	ReviewGen int `json:"review_gen,omitempty"`
 }
 
 // IsSetup reports whether the user is currently answering setup questions.

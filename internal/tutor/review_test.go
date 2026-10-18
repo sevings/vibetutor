@@ -107,7 +107,7 @@ func TestReviewActionWithoutArmedWord(t *testing.T) {
 	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
 	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
 
-	step, err := tut.ReviewAction(1, encodeAction(reviewShow, 0))
+	step, err := tut.ReviewAction(1, encodeAction(reviewShow, 0, 0))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -150,6 +150,31 @@ func TestReviewStaleButton(t *testing.T) {
 	}
 	if got.Actions != nil {
 		t.Errorf("expected stale step, got %v", got.Actions)
+	}
+}
+
+func TestReviewStaleButtonAcrossSessions(t *testing.T) {
+	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
+	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
+
+	first, err := tut.Review(1)
+	if err != nil {
+		t.Fatalf("Review: %v", err)
+	}
+	oldData := first.Actions[0].Data
+
+	// Start a new session; the same word is armed again but belongs to a new
+	// generation, so the previous message's button must be rejected.
+	if _, err := tut.Review(1); err != nil {
+		t.Fatalf("Review again: %v", err)
+	}
+
+	got, err := tut.ReviewAction(1, oldData)
+	if err != nil {
+		t.Fatalf("stale show: %v", err)
+	}
+	if !got.Stale {
+		t.Errorf("expected stale step, got %+v", got)
 	}
 }
 

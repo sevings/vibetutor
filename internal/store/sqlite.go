@@ -40,6 +40,7 @@ type record struct {
 	SetupStep    int
 	LessonNumber int
 	ReviewTerm   string
+	ReviewGen    int
 
 	UpdatedAt time.Time
 }
@@ -126,6 +127,7 @@ func toRecord(userID int64, sess *Session) *record {
 		SetupStep:        sess.SetupStep,
 		LessonNumber:     sess.LessonNumber,
 		ReviewTerm:       sess.ReviewTerm,
+		ReviewGen:        sess.ReviewGen,
 	}
 }
 
@@ -149,5 +151,6 @@ func (r *record) toSession() *Session {
 		SetupStep:    r.SetupStep,
 		LessonNumber: r.LessonNumber,
 		ReviewTerm:   r.ReviewTerm,
+		ReviewGen:    r.ReviewGen,
 	}
 }

@@ -48,6 +48,7 @@ func (t *Tutor) Review(userID int64) (*ReviewStep, error) {
 		return &ReviewStep{Text: "Словарь пуст. Пройди урок и сохрани слова командой /save."}, nil
 	}
 
+	sess.ReviewGen++
 	step := t.nextReviewStep(sess)
 	if err := t.store.Save(userID, sess); err != nil {
 		return nil, err
@@ -63,7 +64,7 @@ func (t *Tutor) ReviewAction(userID int64, data string) (*ReviewStep, error) {
 		return nil, err
 	}
 
-	code, idx, ok := decodeAction(data)
+	code, idx, gen, ok := decodeAction(data)
 	if !ok {
 		return nil, fmt.Errorf("неизвестное действие повторения %q", data)
 	}
@@ -71,12 +72,12 @@ func (t *Tutor) ReviewAction(userID int64, data string) (*ReviewStep, error) {
 	if code != reviewShow && !isRating {
 		return nil, fmt.Errorf("неизвестное действие повторения %q", data)
 	}
-	if !reviewIndexValid(sess, idx) {
+	if !reviewIndexValid(sess, idx, gen) {
 		return staleReviewStep(), nil
 	}
 
 	if code == reviewShow {
-		return revealStep(sess.Progress.SavedWords[idx], idx), nil
+		return revealStep(sess.Progress.SavedWords[idx], idx, sess.ReviewGen), nil
 	}
 
 	schedule(&sess.Progress.SavedWords[idx], quality, time.Now())
@@ -103,13 +104,13 @@ func (t *Tutor) nextReviewStep(sess *store.Session) *ReviewStep {
 	return &ReviewStep{
 		Text: fmt.Sprintf("Слово: %s\n\nВспомни перевод и нажми «Показать». К повторению: %d.", sess.ReviewTerm, pending),
 		Actions: []ReviewAction{
-			{Data: encodeAction(reviewShow, idx), Label: "Показать"},
+			{Data: encodeAction(reviewShow, idx, sess.ReviewGen), Label: "Показать"},
 		},
 	}
 }
 
 // revealStep shows the translation and the self-assessment buttons.
-func revealStep(w store.Word, idx int) *ReviewStep {
+func revealStep(w store.Word, idx, gen int) *ReviewStep {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s — %s", w.Term, w.Translation)
 	if w.Note != "" {
@@ -119,10 +120,10 @@ func revealStep(w store.Word, idx int) *ReviewStep {
 	return &ReviewStep{
 		Text: b.String(),
 		Actions: []ReviewAction{
-			{Data: encodeAction(reviewAgain, idx), Label: "Не помню"},
-			{Data: encodeAction(reviewHard, idx), Label: "Сложно"},
-			{Data: encodeAction(reviewGood, idx), Label: "Помню"},
-			{Data: encodeAction(reviewEasy, idx), Label: "Легко"},
+			{Data: encodeAction(reviewAgain, idx, gen), Label: "Не помню"},
+			{Data: encodeAction(reviewHard, idx, gen), Label: "Сложно"},
+			{Data: encodeAction(reviewGood, idx, gen), Label: "Помню"},
+			{Data: encodeAction(reviewEasy, idx, gen), Label: "Легко"},
 		},
 	}
 }
@@ -137,29 +138,42 @@ func staleReviewStep() *ReviewStep {
 }
 
 // reviewIndexValid reports whether idx points to the word currently armed in
-// the session, guarding against stale buttons from older messages.
-func reviewIndexValid(sess *store.Session, idx int) bool {
-	return sess.ReviewTerm != "" &&
+// the session and the button belongs to the current review session, guarding
+// against stale buttons from older messages or earlier sessions.
+func reviewIndexValid(sess *store.Session, idx, gen int) bool {
+	return gen == sess.ReviewGen &&
+		sess.ReviewTerm != "" &&
 		idx >= 0 && idx < len(sess.Progress.SavedWords) &&
 		sess.Progress.SavedWords[idx].Term == sess.ReviewTerm
 }
 
-// encodeAction packs an action code and the word index into callback data.
-func encodeAction(code string, idx int) string {
-	return code + ":" + strconv.Itoa(idx)
+// encodeAction packs an action code, the word index and the review session
+// generation into callback data.
+func encodeAction(code string, idx, gen int) string {
+	return code + ":" + strconv.Itoa(idx) + ":" + strconv.Itoa(gen)
 }
 
-// decodeAction splits callback data back into an action code and word index.
-func decodeAction(data string) (string, int, bool) {
+// decodeAction splits callback data back into an action code, word index and
+// review session generation.
+func decodeAction(data string) (string, int, int, bool) {
 	i := strings.LastIndex(data, ":")
 	if i < 0 {
-		return "", 0, false
+		return "", 0, 0, false
 	}
-	idx, err := strconv.Atoi(data[i+1:])
+	gen, err := strconv.Atoi(data[i+1:])
 	if err != nil {
-		return "", 0, false
+		return "", 0, 0, false
 	}
-	return data[:i], idx, true
+	rest := data[:i]
+	j := strings.LastIndex(rest, ":")
+	if j < 0 {
+		return "", 0, 0, false
+	}
+	idx, err := strconv.Atoi(rest[j+1:])
+	if err != nil {
+		return "", 0, 0, false
+	}
+	return rest[:j], idx, gen, true
 }
 
 // schedule updates a word's SR state following a simplified SM-2 algorithm.
