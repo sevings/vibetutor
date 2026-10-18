@@ -17,7 +17,7 @@ RUN adduser -D -u 10001 app \
 COPY --from=build /out/vibetutor /usr/local/bin/vibetutor
 
 USER app
-ENV VIBETUTOR_DATA_DIR=/data
+ENV VIBETUTOR_DATABASE=/data/vibetutor.db
 VOLUME ["/data"]
 
 ENTRYPOINT ["vibetutor"]

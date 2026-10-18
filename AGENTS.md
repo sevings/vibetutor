@@ -11,8 +11,9 @@
 ## Требования
 
 - Go 1.26+
-- Единственная внешняя зависимость в рантайме — `gopkg.in/telebot.v4`.
-  Для OpenAI API используется стандартный `net/http`, SDK не добавлять.
+- Внешние зависимости: `gopkg.in/telebot.v4` (Telegram),
+  `github.com/glebarez/sqlite` + `gorm.io/gorm` (SQLite, чистый Go).
+- Для OpenAI API используется стандартный `net/http`, SDK не добавлять.
 
 ## Команды
 
@@ -39,7 +40,7 @@ make fmt      # gofmt -l -w .
 cmd/vibetutor        точка входа: флаги, сборка зависимостей, graceful shutdown
 internal/config      текстовый конфиг + переопределение через VIBETUTOR_* env
 internal/ai          клиент OpenAI-совместимого chat completions (net/http)
-internal/store       файловое хранилище состояния по пользователям (JSON)
+internal/store       хранилище состояния по пользователям в SQLite (GORM)
 internal/tutor       педагогика: setup, plan, lesson, save-words, chat + промпты
 internal/bot         адаптер telebot.v4: команды, сообщения, разбивка ответов
 ```
@@ -63,7 +64,7 @@ internal/bot         адаптер telebot.v4: команды, сообщени
 - Каждый пакет покрывается `*_test.go` рядом.
 - Модель подменяется фейком, реализующим `ai.Client` (см. `tutor_test.go`),
   HTTP-сервер — через `net/http/httptest` (см. `openai_test.go`).
-- Хранилище в тестах — `store.NewFile(t.TempDir())`.
+- Хранилище в тестах — `store.NewSQLite(filepath.Join(t.TempDir(), "test.db"))`.
 - Тестировать чистые функции и поведение, не гоняться за сетью Telegram.
 
 ## Git
@@ -79,4 +80,4 @@ internal/bot         адаптер telebot.v4: команды, сообщени
 - Путь конфига: флаг `-config` -> `VIBETUTOR_CONFIG` -> `config.txt`, если
   существует, иначе только env/значения по умолчанию.
 - Docker: `docker build -t vibetutor .` или `docker compose up -d --build`.
-  В контейнере данные — в томе `/data` (`VIBETUTOR_DATA_DIR`).
+  В контейнере база — в томе `/data` (`VIBETUTOR_DATABASE=/data/vibetutor.db`).

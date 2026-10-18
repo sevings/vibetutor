@@ -3,6 +3,7 @@ package tutor
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,10 +30,11 @@ func (f *fakeAI) Complete(_ context.Context, msgs []ai.Message) (string, error) 
 
 func newTutor(t *testing.T, client ai.Client) (*Tutor, store.Store) {
 	t.Helper()
-	st, err := store.NewFile(t.TempDir())
+	st, err := store.NewSQLite(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}
+	t.Cleanup(func() { _ = st.Close() })
 	return New(client, st), st
 }
 

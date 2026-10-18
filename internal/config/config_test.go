@@ -24,7 +24,7 @@ openai_base_url = http://localhost:11434/v1
 openai_api_key = secret
 openai_model = llama3
 openai_timeout = 30s
-data_dir = /tmp/data
+database = /tmp/vibetutor.db
 allowed_users = 1, 2;3
 `)
 
@@ -48,8 +48,8 @@ allowed_users = 1, 2;3
 	if cfg.OpenAITimeout != 30*time.Second {
 		t.Errorf("timeout = %v", cfg.OpenAITimeout)
 	}
-	if cfg.DataDir != "/tmp/data" {
-		t.Errorf("data dir = %q", cfg.DataDir)
+	if cfg.Database != "/tmp/vibetutor.db" {
+		t.Errorf("database = %q", cfg.Database)
 	}
 	if len(cfg.AllowedUsers) != 3 || cfg.AllowedUsers[2] != 3 {
 		t.Errorf("allowed users = %v", cfg.AllowedUsers)
@@ -64,7 +64,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.OpenAIBaseURL != DefaultBaseURL || cfg.OpenAIModel != DefaultModel {
 		t.Errorf("defaults not applied: %+v", cfg)
 	}
-	if cfg.OpenAITimeout != DefaultTimeout || cfg.DataDir != DefaultDataDir {
+	if cfg.OpenAITimeout != DefaultTimeout || cfg.Database != DefaultDatabase {
 		t.Errorf("defaults not applied: %+v", cfg)
 	}
 }
@@ -74,6 +74,7 @@ func TestLoadEnvOverride(t *testing.T) {
 	t.Setenv("VIBETUTOR_TELEGRAM_TOKEN", "env-token")
 	t.Setenv("VIBETUTOR_OPENAI_MODEL", "env-model")
 	t.Setenv("VIBETUTOR_ALLOWED_USERS", "42")
+	t.Setenv("VIBETUTOR_DATABASE", "/tmp/env.db")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -87,6 +88,9 @@ func TestLoadEnvOverride(t *testing.T) {
 	}
 	if !cfg.IsAllowed(42) || cfg.IsAllowed(7) {
 		t.Errorf("allowed users override failed: %v", cfg.AllowedUsers)
+	}
+	if cfg.Database != "/tmp/env.db" {
+		t.Errorf("database = %q, want /tmp/env.db", cfg.Database)
 	}
 }
 

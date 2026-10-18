@@ -18,7 +18,7 @@ LM Studio, vLLM и т. п. Адрес API задаётся в конфиге.
 - `/save` — извлекает слова урока и сохраняет их в личный словарь.
 - `/profile`, `/reset`, `/help`, `/start`.
 - Прогресс, план, словарь и история переписки хранятся отдельно для каждого
-  пользователя в каталоге `data/`.
+  пользователя в базе данных SQLite.
 - Необязательный белый список пользователей.
 
 ## Команды бота
@@ -69,6 +69,7 @@ docker run -d --name vibetutor --restart unless-stopped \
   -e VIBETUTOR_OPENAI_BASE_URL=https://api.openai.com/v1 \
   -e VIBETUTOR_OPENAI_MODEL=gpt-4o-mini \
   -e VIBETUTOR_ALLOWED_USERS=123456789 \
+  -e VIBETUTOR_DATABASE=/data/vibetutor.db \
   -v "$PWD/data:/data" \
   vibetutor
 ```
@@ -80,7 +81,7 @@ cp .env.example .env   # заполните токен и ключ
 docker compose up -d --build
 ```
 
-Данные сохраняются в каталоге `./data` на хосте.
+База данных сохраняется в `./data/vibetutor.db` на хосте.
 
 ## Конфигурация
 
@@ -96,7 +97,7 @@ docker compose up -d --build
 | `openai_api_key`   | `VIBETUTOR_OPENAI_API_KEY`        | Ключ API (для локальных моделей может быть пуст) |
 | `openai_model`     | `VIBETUTOR_OPENAI_MODEL`          | Название модели                              |
 | `openai_timeout`   | `VIBETUTOR_OPENAI_TIMEOUT`        | Таймаут запроса, например `60s`              |
-| `data_dir`         | `VIBETUTOR_DATA_DIR`              | Каталог с данными пользователей              |
+| `database`         | `VIBETUTOR_DATABASE`              | Путь к файлу базы данных SQLite              |
 
 ## Пример с локальной моделью (Ollama)
 
@@ -122,7 +123,7 @@ make fmt      # gofmt
 cmd/vibetutor        точка входа, разбор флагов, graceful shutdown
 internal/config      загрузка текстового конфига и переменных окружения
 internal/ai          клиент OpenAI-совместимого chat completions API
-internal/store       файловое хранилище состояния каждого пользователя
+internal/store       хранилище состояния пользователей в SQLite (GORM)
 internal/tutor       логика репетитора: setup, plan, lesson, save, chat
 internal/bot         адаптер telebot.v4: команды, обработка сообщений
 ```
@@ -130,6 +131,6 @@ internal/bot         адаптер telebot.v4: команды, обработк
 ## Приватность
 
 Данные учеников (профиль, план, прогресс, история переписки) хранятся
-локально в каталоге `data/` в виде JSON и не передаются никуда, кроме
-настроенного вами API модели. Каталог `data/`, `config.txt` и `.env`
+локально в базе данных SQLite (`data/vibetutor.db`) и не передаются никуда,
+кроме настроенного вами API модели. Каталог `data/`, `config.txt` и `.env`
 исключены из git.

@@ -35,10 +35,11 @@ func main() {
 		logger.Fatalf("invalid config: %v", err)
 	}
 
-	st, err := store.NewFile(cfg.DataDir)
+	st, err := store.NewSQLite(cfg.Database)
 	if err != nil {
 		logger.Fatalf("open store: %v", err)
 	}
+	defer st.Close()
 
 	model := ai.NewOpenAI(cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAITimeout)
 	tut := tutor.New(model, st)

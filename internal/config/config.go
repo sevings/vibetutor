@@ -14,10 +14,10 @@ import (
 // Default values used when neither the config file nor the environment
 // provide a value.
 const (
-	DefaultBaseURL = "https://api.openai.com/v1"
-	DefaultModel   = "gpt-4o-mini"
-	DefaultTimeout = 60 * time.Second
-	DefaultDataDir = "data"
+	DefaultBaseURL  = "https://api.openai.com/v1"
+	DefaultModel    = "gpt-4o-mini"
+	DefaultTimeout  = 60 * time.Second
+	DefaultDatabase = "data/vibetutor.db"
 )
 
 // Config holds everything the bot needs to run.
@@ -32,7 +32,8 @@ type Config struct {
 	OpenAIModel   string
 	OpenAITimeout time.Duration
 
-	DataDir string
+	// Database is the path to the SQLite database file.
+	Database string
 }
 
 // Default returns a Config populated with sensible defaults.
@@ -41,7 +42,7 @@ func Default() *Config {
 		OpenAIBaseURL: DefaultBaseURL,
 		OpenAIModel:   DefaultModel,
 		OpenAITimeout: DefaultTimeout,
-		DataDir:       DefaultDataDir,
+		Database:      DefaultDatabase,
 	}
 }
 
@@ -123,8 +124,8 @@ func (c *Config) set(key, value string) error {
 			return fmt.Errorf("invalid timeout %q: %w", value, err)
 		}
 		c.OpenAITimeout = d
-	case "data_dir", "datadir":
-		c.DataDir = value
+	case "database", "database_path", "db":
+		c.Database = value
 	default:
 		return fmt.Errorf("unknown key %q", key)
 	}
@@ -162,8 +163,8 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("VIBETUTOR_OPENAI_MODEL"); v != "" {
 		c.OpenAIModel = v
 	}
-	if v := os.Getenv("VIBETUTOR_DATA_DIR"); v != "" {
-		c.DataDir = v
+	if v := os.Getenv("VIBETUTOR_DATABASE"); v != "" {
+		c.Database = v
 	}
 	if v := os.Getenv("VIBETUTOR_OPENAI_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -188,8 +189,8 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.OpenAIModel) == "" {
 		return fmt.Errorf("openai model is required")
 	}
-	if strings.TrimSpace(c.DataDir) == "" {
-		return fmt.Errorf("data dir is required")
+	if strings.TrimSpace(c.Database) == "" {
+		return fmt.Errorf("database path is required")
 	}
 	return nil
 }

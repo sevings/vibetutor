@@ -9,5 +9,6 @@ services:
       VIBETUTOR_OPENAI_BASE_URL: ${VIBETUTOR_OPENAI_BASE_URL:-https://api.openai.com/v1}
       VIBETUTOR_OPENAI_MODEL: ${VIBETUTOR_OPENAI_MODEL:-gpt-4o-mini}
       VIBETUTOR_ALLOWED_USERS: ${VIBETUTOR_ALLOWED_USERS:-}
+      VIBETUTOR_DATABASE: /data/vibetutor.db
     volumes:
       - ./data:/data
