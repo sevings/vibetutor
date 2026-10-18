@@ -1,0 +1,13 @@
+services:
+  vibetutor:
+    build: .
+    image: vibetutor
+    restart: unless-stopped
+    environment:
+      VIBETUTOR_TELEGRAM_TOKEN: ${VIBETUTOR_TELEGRAM_TOKEN:?set VIBETUTOR_TELEGRAM_TOKEN}
+      VIBETUTOR_OPENAI_API_KEY: ${VIBETUTOR_OPENAI_API_KEY:-}
+      VIBETUTOR_OPENAI_BASE_URL: ${VIBETUTOR_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      VIBETUTOR_OPENAI_MODEL: ${VIBETUTOR_OPENAI_MODEL:-gpt-4o-mini}
+      VIBETUTOR_ALLOWED_USERS: ${VIBETUTOR_ALLOWED_USERS:-}
+    volumes:
+      - ./data:/data

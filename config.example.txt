@@ -1,0 +1,30 @@
+# Vibetutor — пример конфигурации.
+# Скопируйте файл в config.txt и заполните значения.
+# Любое значение можно переопределить переменной окружения с префиксом
+# VIBETUTOR_ (например VIBETUTOR_TELEGRAM_TOKEN).
+
+# Токен бота от @BotFather (обязательно).
+telegram_token = 123456789:REPLACE_WITH_YOUR_TOKEN
+
+# Список ID пользователей Telegram, которым разрешён доступ,
+# через запятую. Пусто — доступ открыт всем.
+# Узнать свой ID можно у бота @userinfobot.
+allowed_users =
+
+# Адрес OpenAI-совместимого API (обязательно).
+# OpenAI:            https://api.openai.com/v1
+# Ollama (локально): http://localhost:11434/v1
+# LM Studio:         http://localhost:1234/v1
+openai_base_url = https://api.openai.com/v1
+
+# Ключ API. Для локальных моделей может быть пустым.
+openai_api_key = sk-REPLACE_WITH_YOUR_KEY
+
+# Название модели.
+openai_model = gpt-4o-mini
+
+# Таймаут запроса к модели.
+openai_timeout = 60s
+
+# Каталог для хранения профилей, планов и прогресса учеников.
+data_dir = data
