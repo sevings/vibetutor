@@ -19,13 +19,13 @@ func writeConfig(t *testing.T, content string) string {
 func TestLoadFile(t *testing.T) {
 	path := writeConfig(t, `
 # comment line
-telegram_token = tok123
-openai_base_url = http://localhost:11434/v1
-openai_api_key = secret
-openai_model = llama3
-openai_timeout = 30s
-database = /tmp/vibetutor.db
-allowed_users = 1, 2;3
+telegram_token = "123:tok"
+openai_base_url = "http://localhost:11434/v1"
+openai_api_key = "secret"
+openai_model = "llama3"
+openai_timeout = "30s"
+database = "/tmp/vibetutor.db"
+allowed_users = [1, 2, 3]
 `)
 
 	cfg, err := Load(path)
@@ -33,7 +33,7 @@ allowed_users = 1, 2;3
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.TelegramToken != "tok123" {
+	if cfg.TelegramToken != "123:tok" {
 		t.Errorf("token = %q", cfg.TelegramToken)
 	}
 	if cfg.OpenAIBaseURL != "http://localhost:11434/v1" {
@@ -70,7 +70,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadEnvOverride(t *testing.T) {
-	path := writeConfig(t, "telegram_token = file\nopenai_model = file-model\n")
+	path := writeConfig(t, "telegram_token = \"file\"\nopenai_model = \"file-model\"\n")
 	t.Setenv("VIBETUTOR_TELEGRAM_TOKEN", "env-token")
 	t.Setenv("VIBETUTOR_OPENAI_MODEL", "env-model")
 	t.Setenv("VIBETUTOR_ALLOWED_USERS", "42")
@@ -95,7 +95,7 @@ func TestLoadEnvOverride(t *testing.T) {
 }
 
 func TestLoadEnvClearsValue(t *testing.T) {
-	path := writeConfig(t, "openai_api_key = file-secret\nopenai_model = file-model\n")
+	path := writeConfig(t, "openai_api_key = \"file-secret\"\nopenai_model = \"file-model\"\n")
 	t.Setenv("VIBETUTOR_OPENAI_API_KEY", "")
 	cfg, err := Load(path)
 	if err != nil {
@@ -116,12 +116,12 @@ func TestLoadErrors(t *testing.T) {
 		}
 	})
 	t.Run("bad timeout", func(t *testing.T) {
-		if _, err := Load(writeConfig(t, "openai_timeout = soon")); err == nil {
+		if _, err := Load(writeConfig(t, "openai_timeout = \"soon\"")); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 	t.Run("bad user id", func(t *testing.T) {
-		if _, err := Load(writeConfig(t, "allowed_users = abc")); err == nil {
+		if _, err := Load(writeConfig(t, "allowed_users = \"abc\"")); err == nil {
 			t.Fatal("expected error")
 		}
 	})

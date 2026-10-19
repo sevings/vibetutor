@@ -1,14 +1,15 @@
-// Package config loads the bot configuration from a simple text file and
-// allows overriding every value with environment variables.
+// Package config loads the bot configuration from a TOML file and allows
+// overriding every value with environment variables.
 package config
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/knadh/koanf/parsers/toml"
 )
 
 // Default values used when neither the config file nor the environment
@@ -46,8 +47,8 @@ func Default() *Config {
 	}
 }
 
-// Load reads a key=value text file (if path is non-empty) and then applies
-// environment overrides. Lines starting with '#' and blank lines are ignored.
+// Load reads a TOML config file (if path is non-empty) and then applies
+// environment overrides.
 func Load(path string) (*Config, error) {
 	cfg := Default()
 
@@ -63,45 +64,37 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) loadFile(path string) error {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("open config %q: %w", path, err)
 	}
-	defer f.Close()
-
-	sc := bufio.NewScanner(f)
-	line := 0
-	for sc.Scan() {
-		line++
-		key, value, ok := parseLine(sc.Text())
-		if !ok {
-			continue
-		}
-		if err := c.set(key, value); err != nil {
-			return fmt.Errorf("config %q line %d: %w", path, line, err)
-		}
+	values, err := toml.Parser().Unmarshal(data)
+	if err != nil {
+		return fmt.Errorf("parse config %q: %w", path, err)
 	}
-	if err := sc.Err(); err != nil {
-		return fmt.Errorf("read config %q: %w", path, err)
+	for key, value := range values {
+		if err := c.set(key, configValueString(value)); err != nil {
+			return fmt.Errorf("config %q: %w", path, err)
+		}
 	}
 	return nil
 }
 
-// parseLine splits a "key = value" line. It returns ok=false for blank lines
-// and comments.
-func parseLine(raw string) (key, value string, ok bool) {
-	line := strings.TrimSpace(raw)
-	if line == "" || strings.HasPrefix(line, "#") {
-		return "", "", false
+// configValueString converts a decoded TOML value into the string form the
+// setters expect. Arrays are joined with commas, matching the env syntax.
+func configValueString(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			parts = append(parts, configValueString(item))
+		}
+		return strings.Join(parts, ",")
+	default:
+		return fmt.Sprint(v)
 	}
-	k, v, found := strings.Cut(line, "=")
-	if !found {
-		k, v, found = strings.Cut(line, ":")
-	}
-	if !found {
-		return strings.TrimSpace(line), "", true
-	}
-	return strings.TrimSpace(k), strings.TrimSpace(v), true
 }
 
 func (c *Config) set(key, value string) error {

@@ -93,14 +93,14 @@ docker compose up -d --build
 
 ## Конфигурация
 
-Файл — обычный текст `ключ = значение`. Строки, начинающиеся с `#`,
-игнорируются. Любое значение переопределяется переменной окружения с
-префиксом `VIBETUTOR_`.
+Файл — [TOML](https://toml.io/): строки и длительности заключаются в
+кавычки, `allowed_users` — массив. Комментарии начинаются с `#`. Любое
+значение переопределяется переменной окружения с префиксом `VIBETUTOR_`.
 
 | Ключ в файле       | Переменная окружения              | Назначение                                   |
 |--------------------|-----------------------------------|----------------------------------------------|
 | `telegram_token`   | `VIBETUTOR_TELEGRAM_TOKEN`        | Токен бота от @BotFather (обязателен)        |
-| `allowed_users`    | `VIBETUTOR_ALLOWED_USERS`         | ID пользователей через запятую (пусто = все) |
+| `allowed_users`    | `VIBETUTOR_ALLOWED_USERS`         | Массив ID в файле, через запятую в env (пусто = все) |
 | `openai_base_url`  | `VIBETUTOR_OPENAI_BASE_URL`       | Адрес API, например `http://localhost:11434/v1` |
 | `openai_api_key`   | `VIBETUTOR_OPENAI_API_KEY`        | Ключ API (для локальных моделей может быть пуст) |
 | `openai_model`     | `VIBETUTOR_OPENAI_MODEL`          | Название модели                              |
@@ -113,11 +113,11 @@ docker compose up -d --build
 
 ## Пример с локальной моделью (Ollama)
 
-```ini
-telegram_token = 123456:ABC...
-openai_base_url = http://localhost:11434/v1
-openai_api_key =
-openai_model = llama3.1
+```toml
+telegram_token = "123456:ABC..."
+openai_base_url = "http://localhost:11434/v1"
+openai_api_key = ""
+openai_model = "llama3.1"
 ```
 
 ## Разработка

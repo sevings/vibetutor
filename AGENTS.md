@@ -38,7 +38,7 @@ make fmt      # gofmt -l -w .
 
 ```
 cmd/vibetutor        точка входа: флаги, сборка зависимостей, graceful shutdown
-internal/config      текстовый конфиг + переопределение через VIBETUTOR_* env
+internal/config      TOML-конфиг + переопределение через VIBETUTOR_* env
 internal/ai          клиент OpenAI-совместимого chat completions (net/http)
 internal/store       хранилище состояния по пользователям в SQLite (GORM)
 internal/tutor       педагогика: setup, plan, lesson, save-words, chat + промпты
@@ -56,7 +56,7 @@ internal/bot         адаптер telebot.v4: команды, сообщени
 - Комментарии — минимальные, только для неочевидных мест (godoc на экспорте).
 - Промпты и текст общения с пользователем — в `internal/tutor/prompts.go` и
   константами рядом с логикой, на русском.
-- Конфиг: сначала файл, затем env переопределяет. Новые ключи добавлять
+- Конфиг: сначала TOML-файл, затем env переопределяет. Новые ключи добавлять
   одновременно в `Config`, `set()`, `applyEnv()` и `config.example.txt`.
 
 ## Тесты
