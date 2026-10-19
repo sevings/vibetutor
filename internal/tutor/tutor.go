@@ -411,7 +411,7 @@ func parseWords(raw string) ([]store.Word, error) {
 		if err := json.NewDecoder(strings.NewReader(raw[i:])).Decode(&words); err != nil {
 			continue
 		}
-		if !hasTerms(words) {
+		if !hasUsableWords(words) {
 			continue
 		}
 		return words, nil
@@ -419,15 +419,16 @@ func parseWords(raw string) ([]store.Word, error) {
 	return nil, fmt.Errorf("в ответе нет JSON-массива")
 }
 
-// hasTerms reports whether a word array is usable: either empty or containing
-// at least one entry with a non-empty term. It rejects a reply that uses the
-// wrong keys instead of silently yielding no words.
-func hasTerms(words []store.Word) bool {
+// hasUsableWords reports whether a word array is usable: either empty or
+// containing at least one entry with a non-empty term and translation. It
+// rejects a reply that uses the wrong keys instead of silently yielding no
+// words.
+func hasUsableWords(words []store.Word) bool {
 	if len(words) == 0 {
 		return true
 	}
 	for _, w := range words {
-		if strings.TrimSpace(w.Term) != "" {
+		if strings.TrimSpace(w.Term) != "" && strings.TrimSpace(w.Translation) != "" {
 			return true
 		}
 	}
@@ -443,8 +444,9 @@ func addWords(p *store.Progress, words []store.Word) int {
 	added := 0
 	for _, w := range words {
 		w.Term = strings.TrimSpace(w.Term)
+		w.Translation = strings.TrimSpace(w.Translation)
 		key := strings.ToLower(w.Term)
-		if key == "" || seen[key] {
+		if key == "" || w.Translation == "" || seen[key] {
 			continue
 		}
 		seen[key] = true

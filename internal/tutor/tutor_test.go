@@ -500,6 +500,24 @@ func TestParseWordsRequiresTerm(t *testing.T) {
 	}
 }
 
+func TestParseWordsRequiresTranslation(t *testing.T) {
+	if _, err := parseWords(`[{"term":"a"}]`); err == nil {
+		t.Error("expected error for an array without translations")
+	}
+}
+
+func TestAddWordsSkipsEmptyTranslation(t *testing.T) {
+	var p store.Progress
+	added := addWords(&p, []store.Word{
+		{Term: "a", Translation: " "},
+		{Term: "b", Translation: "б"},
+		{Term: "c"},
+	})
+	if added != 1 || len(p.SavedWords) != 1 || p.SavedWords[0].Term != "b" {
+		t.Errorf("added = %d, words = %+v", added, p.SavedWords)
+	}
+}
+
 func TestParseWordsTrailingBrackets(t *testing.T) {
 	words, err := parseWords(`[{"term":"a","translation":"б"}] (см. [1])`)
 	if err != nil {
