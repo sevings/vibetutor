@@ -10,6 +10,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 
 	"vibetutor/internal/ai"
 )
@@ -54,7 +55,10 @@ func NewSQLite(path string) (*SQLiteStore, error) {
 		}
 	}
 
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+		// A new user always causes an expected ErrRecordNotFound in Load.
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open database %q: %w", path, err)
 	}
