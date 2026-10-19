@@ -411,9 +411,27 @@ func parseWords(raw string) ([]store.Word, error) {
 		if err := json.NewDecoder(strings.NewReader(raw[i:])).Decode(&words); err != nil {
 			continue
 		}
+		if !hasTerms(words) {
+			continue
+		}
 		return words, nil
 	}
 	return nil, fmt.Errorf("в ответе нет JSON-массива")
+}
+
+// hasTerms reports whether a word array is usable: either empty or containing
+// at least one entry with a non-empty term. It rejects a reply that uses the
+// wrong keys instead of silently yielding no words.
+func hasTerms(words []store.Word) bool {
+	if len(words) == 0 {
+		return true
+	}
+	for _, w := range words {
+		if strings.TrimSpace(w.Term) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // addWords appends words, skipping duplicates, and returns how many were added.

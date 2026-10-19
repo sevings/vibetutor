@@ -264,6 +264,37 @@ func TestSaveWordsBadJSON(t *testing.T) {
 	}
 }
 
+func TestSaveWordsWrongKeysKeepsLesson(t *testing.T) {
+	fake := &fakeAI{replies: []string{
+		"plan", "lesson text", `[{"word":"hello","meaning":"привет"}]`,
+	}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Lesson(ctx, 1, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := tut.SaveWords(ctx, 1)
+	if err != nil {
+		t.Fatalf("SaveWords: %v", err)
+	}
+	if !strings.Contains(msg, "разобрать") {
+		t.Errorf("message = %q, want a parse hint", msg)
+	}
+
+	sess, _ := st.Load(1)
+	if len(sess.Progress.SavedWords) != 0 || len(sess.Progress.CompletedLessons) != 0 {
+		t.Errorf("progress changed on unusable array: %+v", sess.Progress)
+	}
+	if sess.LastLessonOutput == "" || sess.LessonNumber != 1 {
+		t.Errorf("lesson state cleared on unusable array: %+v", sess)
+	}
+}
+
 func TestAIErrorPropagates(t *testing.T) {
 	fake := &fakeAI{replies: []string{"x"}, err: errors.New("boom")}
 	tut, st := newTutor(t, fake)
@@ -450,6 +481,22 @@ func TestParseWords(t *testing.T) {
 	}
 	if _, err := parseWords("nothing"); err == nil {
 		t.Error("expected error")
+	}
+}
+
+func TestParseWordsEmptyArray(t *testing.T) {
+	words, err := parseWords("[]")
+	if err != nil {
+		t.Fatalf("parseWords: %v", err)
+	}
+	if len(words) != 0 {
+		t.Errorf("words = %+v, want empty", words)
+	}
+}
+
+func TestParseWordsRequiresTerm(t *testing.T) {
+	if _, err := parseWords(`[{"word":"a","meaning":"б"}]`); err == nil {
+		t.Error("expected error for an array without terms")
 	}
 }
 
