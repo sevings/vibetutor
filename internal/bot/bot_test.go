@@ -1,6 +1,9 @@
 package bot
 
 import (
+	"errors"
+	"io"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +174,64 @@ func TestTrackWaitsForInFlightHandlers(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("wait did not return after the handler finished")
 	}
+}
+
+type fakeContext struct {
+	tele.Context
+	editErr error
+	edited  []string
+	sent    []string
+}
+
+func (f *fakeContext) Edit(what interface{}, opts ...interface{}) error {
+	if f.editErr != nil {
+		return f.editErr
+	}
+	f.edited = append(f.edited, what.(string))
+	return nil
+}
+
+func (f *fakeContext) Send(what interface{}, opts ...interface{}) error {
+	f.sent = append(f.sent, what.(string))
+	return nil
+}
+
+func TestUpdateReviewMessage(t *testing.T) {
+	step := &tutor.ReviewStep{
+		Text:    "привет — hello",
+		Actions: []tutor.ReviewAction{{Data: "show", Label: "Показать"}},
+	}
+	b := &Bot{log: log.New(io.Discard, "", 0)}
+
+	t.Run("edit succeeds", func(t *testing.T) {
+		c := &fakeContext{}
+		if err := b.updateReviewMessage(c, step); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(c.edited) != 1 || len(c.sent) != 0 {
+			t.Errorf("edited = %v, sent = %v", c.edited, c.sent)
+		}
+	})
+
+	t.Run("not modified is success", func(t *testing.T) {
+		c := &fakeContext{editErr: tele.ErrMessageNotModified}
+		if err := b.updateReviewMessage(c, step); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(c.sent) != 0 {
+			t.Errorf("unexpected fallback send: %v", c.sent)
+		}
+	})
+
+	t.Run("edit failure falls back to send", func(t *testing.T) {
+		c := &fakeContext{editErr: errors.New("message is too long")}
+		if err := b.updateReviewMessage(c, step); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(c.sent) != 1 || c.sent[0] != step.Text {
+			t.Errorf("sent = %v, want [%q]", c.sent, step.Text)
+		}
+	})
 }
 
 func TestCommandPattern(t *testing.T) {

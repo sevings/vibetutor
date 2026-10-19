@@ -293,17 +293,26 @@ func (b *Bot) onReviewCallback(c tele.Context) error {
 	if step == nil {
 		return nil
 	}
-	if markup := reviewMarkup(step); markup != nil {
-		if err := c.Edit(step.Text, markup); err != nil && !isMessageNotModified(err) {
-			return err
-		}
+	return b.updateReviewMessage(c, step)
+}
+
+// updateReviewMessage replaces the active review message with step. If Telegram
+// rejects the edit (e.g. the text exceeds the message length limit), it falls
+// back to sending a new message so the review session is not stuck.
+func (b *Bot) updateReviewMessage(c tele.Context, step *tutor.ReviewStep) error {
+	markup := reviewMarkup(step)
+	var err error
+	if markup != nil {
+		err = c.Edit(step.Text, markup)
+	} else {
+		// No actions left: editing without a markup removes the inline keyboard.
+		err = c.Edit(step.Text)
+	}
+	if err == nil || isMessageNotModified(err) {
 		return nil
 	}
-	// No actions left: editing without a markup removes the inline keyboard.
-	if err := c.Edit(step.Text); err != nil && !isMessageNotModified(err) {
-		return err
-	}
-	return nil
+	b.log.Printf("edit review message: %v", err)
+	return b.sendReview(c, step)
 }
 
 // isMessageNotModified reports whether err is Telegram rejecting a no-op edit,
