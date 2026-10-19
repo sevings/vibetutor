@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	tele "gopkg.in/telebot.v4"
+
 	"vibetutor/internal/tutor"
 )
 
@@ -121,6 +123,53 @@ func TestOutgoingChunks(t *testing.T) {
 	}
 	if chunks := outgoingChunks("   \n "); len(chunks) != 1 || chunks[0] != emptyReplyMsg {
 		t.Errorf("empty reply chunks = %v, want fallback", chunks)
+	}
+}
+
+func TestTrackWaitsForInFlightHandlers(t *testing.T) {
+	b := &Bot{}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := b.track(func(tele.Context) error {
+		close(started)
+		<-release
+		return nil
+	})
+	go func() { _ = h(nil) }()
+	<-started
+
+	b.beginShutdown()
+
+	ran := make(chan struct{}, 1)
+	late := b.track(func(tele.Context) error {
+		ran <- struct{}{}
+		return nil
+	})
+	if err := late(nil); err != nil {
+		t.Fatalf("late handler: %v", err)
+	}
+	select {
+	case <-ran:
+		t.Fatal("handler ran after shutdown started")
+	default:
+	}
+
+	waited := make(chan struct{})
+	go func() {
+		b.handlers.Wait()
+		close(waited)
+	}()
+	select {
+	case <-waited:
+		t.Fatal("wait returned before the handler finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	select {
+	case <-waited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("wait did not return after the handler finished")
 	}
 }
 

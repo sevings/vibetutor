@@ -8,6 +8,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	tele "gopkg.in/telebot.v4"
@@ -38,6 +39,12 @@ type Bot struct {
 	cfg   *config.Config
 	log   *log.Logger
 	ctx   context.Context
+
+	// handlers tracks in-flight handler goroutines so Stop can wait for them
+	// before the store is closed.
+	handlers sync.WaitGroup
+	stopMu   sync.Mutex
+	stopped  bool
 }
 
 // New constructs the bot. The provided context is used for model calls and
@@ -65,27 +72,56 @@ func (b *Bot) Run() {
 	b.publishCommands()
 	b.log.Printf("bot started as @%s", b.api.Me.Username)
 	b.api.Start()
+	// Start only returns after Stop, so no new handlers can be registered.
+	b.handlers.Wait()
 }
 
-// Stop gracefully stops the polling loop.
-func (b *Bot) Stop() { b.api.Stop() }
+// Stop gracefully stops polling and waits for handlers that are already
+// running, so the store is not closed underneath them.
+func (b *Bot) Stop() {
+	b.beginShutdown()
+	b.api.Stop()
+	b.handlers.Wait()
+}
+
+func (b *Bot) beginShutdown() {
+	b.stopMu.Lock()
+	b.stopped = true
+	b.stopMu.Unlock()
+}
+
+// track registers a handler as in-flight. Once shutdown starts, new handlers
+// are skipped and Stop waits for the ones already running.
+func (b *Bot) track(fn tele.HandlerFunc) tele.HandlerFunc {
+	return func(c tele.Context) error {
+		b.stopMu.Lock()
+		if b.stopped {
+			b.stopMu.Unlock()
+			return nil
+		}
+		b.handlers.Add(1)
+		b.stopMu.Unlock()
+		defer b.handlers.Done()
+		return fn(c)
+	}
+}
 
 func (b *Bot) register() {
-	b.api.Handle("/start", b.command(func(context.Context, int64) (string, error) {
+	b.api.Handle("/start", b.track(b.command(func(context.Context, int64) (string, error) {
 		return b.tutor.Welcome(), nil
-	}))
-	b.api.Handle("/help", b.command(func(context.Context, int64) (string, error) {
+	})))
+	b.api.Handle("/help", b.track(b.command(func(context.Context, int64) (string, error) {
 		return b.tutor.Help(), nil
-	}))
-	b.api.Handle("/setup", b.command(b.tutor.Setup))
-	b.api.Handle("/profile", b.command(b.tutor.Profile))
-	b.api.Handle("/plan", b.command(b.tutor.Plan))
-	b.api.Handle("/lesson", b.commandArg(b.tutor.Lesson))
-	b.api.Handle("/save", b.command(b.tutor.SaveWords))
-	b.api.Handle("/review", b.reviewCommand)
-	b.api.Handle(&tele.InlineButton{Unique: reviewButtonUnique}, b.onReviewCallback)
-	b.api.Handle("/reset", b.command(b.tutor.Reset))
-	b.api.Handle(tele.OnText, b.onText)
+	})))
+	b.api.Handle("/setup", b.track(b.command(b.tutor.Setup)))
+	b.api.Handle("/profile", b.track(b.command(b.tutor.Profile)))
+	b.api.Handle("/plan", b.track(b.command(b.tutor.Plan)))
+	b.api.Handle("/lesson", b.track(b.commandArg(b.tutor.Lesson)))
+	b.api.Handle("/save", b.track(b.command(b.tutor.SaveWords)))
+	b.api.Handle("/review", b.track(b.reviewCommand))
+	b.api.Handle(&tele.InlineButton{Unique: reviewButtonUnique}, b.track(b.onReviewCallback))
+	b.api.Handle("/reset", b.track(b.command(b.tutor.Reset)))
+	b.api.Handle(tele.OnText, b.track(b.onText))
 }
 
 func (b *Bot) publishCommands() {
