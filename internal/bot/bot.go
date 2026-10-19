@@ -20,6 +20,10 @@ import (
 // maxMessageLen is a safe chunk size below Telegram's 4096-character limit.
 const maxMessageLen = 4000
 
+// typingRefresh is how often the typing action is renewed. Telegram clears it
+// after about five seconds.
+const typingRefresh = 4 * time.Second
+
 const notAllowedMsg = "Извини, доступ к этому боту ограничен."
 
 const emptyReplyMsg = "Модель вернула пустой ответ. Попробуй ещё раз."
@@ -106,6 +110,34 @@ func (b *Bot) track(fn tele.HandlerFunc) tele.HandlerFunc {
 	}
 }
 
+// startTyping shows the typing action and renews it until the returned stop
+// function is called, so slow model responses keep the indicator alive.
+func (b *Bot) startTyping(c tele.Context) func() {
+	if err := c.Notify(tele.Typing); err != nil {
+		b.log.Printf("notify typing: %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(typingRefresh)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				if err := c.Notify(tele.Typing); err != nil {
+					b.log.Printf("notify typing: %v", err)
+					return
+				}
+			}
+		}
+	}()
+	return func() {
+		close(done)
+	}
+}
+
 func (b *Bot) register() {
 	b.api.Handle("/start", b.track(b.command(func(context.Context, int64) (string, error) {
 		return b.tutor.Welcome(), nil
@@ -188,9 +220,8 @@ func (b *Bot) onText(c tele.Context) error {
 // respond shows a typing indicator, runs fn and sends the (possibly long)
 // reply back to the chat.
 func (b *Bot) respond(c tele.Context, fn func(ctx context.Context) (string, error)) {
-	if err := c.Notify(tele.Typing); err != nil {
-		b.log.Printf("notify typing: %v", err)
-	}
+	stopTyping := b.startTyping(c)
+	defer stopTyping()
 
 	reply, err := fn(b.ctx)
 	if err != nil {
@@ -227,9 +258,8 @@ func (b *Bot) reviewCommand(c tele.Context) error {
 	if !b.cfg.IsAllowed(sender.ID) {
 		return c.Send(notAllowedMsg)
 	}
-	if err := c.Notify(tele.Typing); err != nil {
-		b.log.Printf("notify typing: %v", err)
-	}
+	stopTyping := b.startTyping(c)
+	defer stopTyping()
 
 	step, err := b.tutor.Review(sender.ID)
 	if err != nil {
