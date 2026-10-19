@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"vibetutor/internal/ai"
 	"vibetutor/internal/store"
@@ -18,6 +19,10 @@ import (
 
 // maxHistory is the number of recent conversation messages kept per user.
 const maxHistory = 24
+
+// maxLessonOutput caps the accumulated lesson transcript used by /save so a
+// long lesson cannot grow without bound or exceed the model context.
+const maxLessonOutput = 16000
 
 // Messages exposed to the transport layer.
 const (
@@ -379,10 +384,19 @@ func trimHistory(h []ai.Message) []ai.Message {
 // transcript so /save can extract vocabulary from the whole lesson, not just
 // its last message.
 func appendLessonOutput(existing, reply string) string {
-	if strings.TrimSpace(existing) == "" {
-		return reply
+	out := reply
+	if strings.TrimSpace(existing) != "" {
+		out = existing + "\n\n" + reply
 	}
-	return existing + "\n\n" + reply
+	if len(out) <= maxLessonOutput {
+		return out
+	}
+	// Keep the most recent part of the transcript, cutting on a rune boundary.
+	cut := len(out) - maxLessonOutput
+	for cut < len(out) && !utf8.RuneStart(out[cut]) {
+		cut++
+	}
+	return out[cut:]
 }
 
 // parseWords extracts a JSON array of words from a model reply that may

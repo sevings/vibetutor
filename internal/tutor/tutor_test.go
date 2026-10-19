@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"vibetutor/internal/ai"
 	"vibetutor/internal/store"
@@ -537,5 +538,26 @@ func TestSplitHistoryLimit(t *testing.T) {
 	trimmed := trimHistory(history)
 	if len(trimmed) != maxHistory {
 		t.Errorf("len = %d, want %d", len(trimmed), maxHistory)
+	}
+}
+
+func TestAppendLessonOutputBounded(t *testing.T) {
+	out := appendLessonOutput("", strings.Repeat("a", maxLessonOutput+500))
+	if len(out) > maxLessonOutput {
+		t.Errorf("len = %d, want <= %d", len(out), maxLessonOutput)
+	}
+
+	out = ""
+	for i := 0; i < 10; i++ {
+		out = appendLessonOutput(out, strings.Repeat("привет", 1000))
+	}
+	if len(out) > maxLessonOutput {
+		t.Errorf("len = %d, want <= %d", len(out), maxLessonOutput)
+	}
+	if !utf8.ValidString(out) {
+		t.Error("truncated output is not valid UTF-8")
+	}
+	if !strings.HasSuffix(out, "привет") {
+		t.Error("truncated output lost the most recent reply")
 	}
 }
