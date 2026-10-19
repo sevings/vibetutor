@@ -93,8 +93,14 @@ func (t *Tutor) Setup(_ context.Context, userID int64) (string, error) {
 		return "", err
 	}
 	sess.Profile = store.Profile{}
+	sess.Plan = ""
 	sess.Mode = store.ModeSetup
 	sess.SetupStep = 0
+	sess.History = nil
+	sess.LastLessonOutput = ""
+	sess.LessonNumber = 0
+	sess.ReviewTerm = ""
+	sess.ReviewGen++
 	if err := t.store.Save(userID, sess); err != nil {
 		return "", err
 	}

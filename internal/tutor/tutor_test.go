@@ -315,6 +315,38 @@ func TestReset(t *testing.T) {
 	}
 }
 
+func TestSetupClearsLessonAndReviewState(t *testing.T) {
+	fake := &fakeAI{replies: []string{"plan", "lesson"}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Lesson(ctx, 1, ""); err != nil {
+		t.Fatal(err)
+	}
+	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
+	if _, err := tut.Review(1); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := st.Load(1)
+
+	if _, err := tut.Setup(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := st.Load(1)
+	if after.LastLessonOutput != "" || after.LessonNumber != 0 {
+		t.Errorf("lesson state not cleared: %+v", after)
+	}
+	if after.Plan != "" || len(after.History) != 0 {
+		t.Errorf("chat context not cleared: plan=%q history=%d", after.Plan, len(after.History))
+	}
+	if after.ReviewTerm != "" || after.ReviewGen == before.ReviewGen {
+		t.Errorf("review state not disarmed: term=%q gen=%d (was %d)", after.ReviewTerm, after.ReviewGen, before.ReviewGen)
+	}
+}
+
 func TestResetPreservesReviewGen(t *testing.T) {
 	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
 	seedWords(t, st, 1, store.Word{Term: "hello", Translation: "привет"})
