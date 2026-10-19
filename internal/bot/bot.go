@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	tele "gopkg.in/telebot.v4"
 
@@ -366,7 +367,8 @@ func reviewMarkup(step *tutor.ReviewStep) *tele.ReplyMarkup {
 }
 
 // SplitMessage splits text into chunks no longer than limit bytes, trying to
-// break on newlines and never splitting a UTF-8 rune.
+// break on newlines and never splitting a UTF-8 rune. A single rune longer than
+// limit is kept whole, so its chunk may exceed limit.
 func SplitMessage(text string, limit int) []string {
 	if limit <= 0 {
 		limit = maxMessageLen
@@ -387,9 +389,14 @@ func SplitMessage(text string, limit int) []string {
 		}
 		cut = utf8SafeCut(text, cut)
 		if cut == 0 {
-			// The window is entirely UTF-8 continuation bytes; fall back to
-			// the raw limit so the loop always makes progress.
-			cut = limit
+			// The window ends inside the first rune. Keep the whole rune if it
+			// is longer than limit, otherwise fall back to the raw limit so the
+			// loop always makes progress on invalid UTF-8.
+			if _, size := utf8.DecodeRuneInString(text); size > limit {
+				cut = size
+			} else {
+				cut = limit
+			}
 		}
 		if chunk := strings.TrimSpace(text[:cut]); chunk != "" {
 			chunks = append(chunks, chunk)

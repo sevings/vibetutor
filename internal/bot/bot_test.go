@@ -176,6 +176,19 @@ func TestTrackWaitsForInFlightHandlers(t *testing.T) {
 	}
 }
 
+func TestSplitMessageRuneLongerThanLimit(t *testing.T) {
+	text := "😀x"
+	chunks := SplitMessage(text, 2)
+	if strings.Join(chunks, "") != text {
+		t.Fatalf("chunks = %q, want reconstruction of %q", chunks, text)
+	}
+	for _, c := range chunks {
+		if !utf8.ValidString(c) {
+			t.Errorf("invalid utf8 chunk: %q", c)
+		}
+	}
+}
+
 type fakeContext struct {
 	tele.Context
 	editErr error
