@@ -302,6 +302,61 @@ func TestEmptyReplyNotPersisted(t *testing.T) {
 	}
 }
 
+func TestPlanEmptyReplyKeepsPreviousPlan(t *testing.T) {
+	fake := &fakeAI{replies: []string{"ПЛАН", "   "}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := st.Load(1)
+
+	reply, err := tut.Plan(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(reply) != "" {
+		t.Errorf("reply = %q, want empty", reply)
+	}
+	after, _ := st.Load(1)
+	if after.Plan != "ПЛАН" {
+		t.Errorf("plan = %q, want previous plan kept", after.Plan)
+	}
+	if after.Mode != before.Mode || len(after.History) != len(before.History) {
+		t.Errorf("session changed on empty plan: %+v", after)
+	}
+}
+
+func TestLessonEmptyReplyKeepsPreviousLesson(t *testing.T) {
+	fake := &fakeAI{replies: []string{"plan", "УРОК", "   "}}
+	tut, st := newTutor(t, fake)
+	ctx := context.Background()
+	mustSetup(t, tut, st, 1)
+	if _, err := tut.Plan(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tut.Lesson(ctx, 1, ""); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := st.Load(1)
+
+	reply, err := tut.Lesson(ctx, 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(reply) != "" {
+		t.Errorf("reply = %q, want empty", reply)
+	}
+	after, _ := st.Load(1)
+	if after.LastLessonOutput != "УРОК" || after.LessonNumber != before.LessonNumber {
+		t.Errorf("lesson state changed on empty reply: %+v", after)
+	}
+	if len(after.History) != len(before.History) {
+		t.Errorf("history changed on empty reply: %d -> %d", len(before.History), len(after.History))
+	}
+}
+
 func TestReset(t *testing.T) {
 	tut, st := newTutor(t, &fakeAI{replies: []string{"x"}})
 	ctx := context.Background()

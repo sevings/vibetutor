@@ -198,6 +198,11 @@ func (t *Tutor) Plan(ctx context.Context, userID int64) (string, error) {
 		return "", err
 	}
 
+	// Leave the previous plan in place when the model returns nothing usable.
+	if strings.TrimSpace(reply) == "" {
+		return reply, nil
+	}
+
 	sess.Plan = reply
 	sess.Mode = store.ModeChat
 	sess.History = nil
@@ -243,6 +248,12 @@ func (t *Tutor) Lesson(ctx context.Context, userID int64, arg string) (string, e
 	})
 	if err != nil {
 		return "", err
+	}
+
+	// Do not start a lesson over an empty reply: the saved state must keep the
+	// previous lesson intact so /save still has something to work with.
+	if strings.TrimSpace(reply) == "" {
+		return reply, nil
 	}
 
 	sess.LastLessonOutput = reply
